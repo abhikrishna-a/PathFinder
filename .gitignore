@@ -1,0 +1,20 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+db.sqlite3
+staticfiles/
+resume/*.pdf
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# User-specific profile (copy profile.example.py to profile.py and fill in your info)
+config/profile.py
+
+# User-specific profile data (editable from dashboard)
+profile.json

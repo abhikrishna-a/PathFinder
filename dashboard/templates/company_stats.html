@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Company Stats — PathFinder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Company Analytics</h2>
+</div>
+
+<div class="search-box">
+    <span class="search-icon">&#x2315;</span>
+    <input type="text" id="companySearch" placeholder="Search companies..." oninput="filterCompanies()">
+</div>
+
+<div style="overflow-x: auto;">
+<table class="data-table" id="companyTable">
+    <thead>
+        <tr>
+            <th>Company</th>
+            <th>Jobs</th>
+            <th>Avg Score</th>
+            <th>Applied</th>
+            <th>Skills They Want</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for c in company_data %}
+        <tr data-company="{{ c.company|lower }}">
+            <td><strong>{{ c.company }}</strong></td>
+            <td>{{ c.job_count }}</td>
+            <td>
+                <span class="score-badge {% if c.avg_score >= 50 %}high{% elif c.avg_score >= 30 %}med{% else %}low{% endif %}">{{ c.avg_score }}%</span>
+            </td>
+            <td>{{ c.applied_count }}</td>
+            <td>
+                {% for skill in c.skills %}
+                <span class="skill-tag">{{ skill }}</span>
+                {% endfor %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="empty">No data yet.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+function filterCompanies() {
+    var query = document.getElementById('companySearch').value.toLowerCase();
+    var rows = document.querySelectorAll('#companyTable tbody tr');
+    rows.forEach(function(row) {
+        var company = row.getAttribute('data-company') || '';
+        if (company.indexOf(query) !== -1) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+{% endblock %}

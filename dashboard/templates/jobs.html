@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Jobs — PathFinder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>All Jobs <span class="count">({{ total_count }})</span></h2>
+</div>
+
+<div class="search-box">
+    <span class="search-icon">&#x2315;</span>
+    <input type="text" id="jobSearch" placeholder="Search by title or company..." oninput="filterJobs()">
+</div>
+
+<div class="filters">
+    <div class="filter-group">
+        <label>Status</label>
+        <a href="?status=all&location={{ location_filter }}&sort={{ current_sort }}" class="filter-btn {% if status_filter == 'all' %}active{% endif %}">All</a>
+        <a href="?status=new&location={{ location_filter }}&sort={{ current_sort }}" class="filter-btn {% if status_filter == 'new' %}active{% endif %}">New</a>
+        <a href="?status=matched&location={{ location_filter }}&sort={{ current_sort }}" class="filter-btn {% if status_filter == 'matched' %}active{% endif %}">Matched</a>
+        <a href="?status=applied&location={{ location_filter }}&sort={{ current_sort }}" class="filter-btn {% if status_filter == 'applied' %}active{% endif %}">Applied</a>
+        <a href="?status=web_apply&location={{ location_filter }}&sort={{ current_sort }}" class="filter-btn {% if status_filter == 'web_apply' %}active{% endif %}">Web Apply</a>
+        <a href="?status=ignored&location={{ location_filter }}&sort={{ current_sort }}" class="filter-btn {% if status_filter == 'ignored' %}active{% endif %}">Ignored</a>
+    </div>
+    <div class="filter-group">
+        <label>Location</label>
+        <a href="?status={{ status_filter }}&location=all&sort={{ current_sort }}" class="filter-btn {% if location_filter == 'all' %}active{% endif %}">All</a>
+        <a href="?status={{ status_filter }}&location=kerala&sort={{ current_sort }}" class="filter-btn {% if location_filter == 'kerala' %}active{% endif %}">Kerala</a>
+        <a href="?status={{ status_filter }}&location=india&sort={{ current_sort }}" class="filter-btn {% if location_filter == 'india' %}active{% endif %}">India</a>
+        <a href="?status={{ status_filter }}&location=remote&sort={{ current_sort }}" class="filter-btn {% if location_filter == 'remote' %}active{% endif %}">Remote</a>
+    </div>
+    <div class="filter-group">
+        <label>Sort</label>
+        <a href="?status={{ status_filter }}&location={{ location_filter }}&sort=-match_score" class="filter-btn {% if current_sort == '-match_score' %}active{% endif %}">Score</a>
+        <a href="?status={{ status_filter }}&location={{ location_filter }}&sort=-fetched_date" class="filter-btn {% if current_sort == '-fetched_date' %}active{% endif %}">Date</a>
+        <a href="?status={{ status_filter }}&location={{ location_filter }}&sort=company" class="filter-btn {% if current_sort == 'company' %}active{% endif %}">Company</a>
+    </div>
+</div>
+
+<div class="job-list" id="jobList">
+    {% for job in jobs %}
+    <div class="job-card status-{{ job.status }}" data-title="{{ job.title|lower }}" data-company="{{ job.company|lower }}">
+        <div class="job-card-header">
+            <span class="score-badge {% if job.match_score >= 50 %}high{% elif job.match_score >= 30 %}med{% else %}low{% endif %}">{{ job.match_score }}%</span>
+            <div>
+                <a href="{% url 'job_detail' job.id %}" class="job-title">{{ job.title }}</a>
+                <div class="job-meta">{{ job.company }} &middot; {{ job.location }} &middot; {{ job.source }}</div>
+            </div>
+            <span class="status-pill {{ job.status }}">{{ job.status }}</span>
+        </div>
+        {% if job.matched_skills %}
+        <div class="job-skills">
+            {% for skill in job.matched_skills %}
+            <span class="skill-tag">{{ skill }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <div class="job-footer">
+            <span>Posted: {{ job.posted_date|truncatechars:30 }}</span>
+            <span>Fetched: {{ job.fetched_date|date:"M d, g:i A" }}</span>
+        </div>
+    </div>
+    {% empty %}
+    <div class="empty-state">No jobs found. Run the fetcher to get started.</div>
+    {% endfor %}
+</div>
+
+{% if page_obj.has_other_pages %}
+<div class="pagination">
+    {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&status={{ status_filter }}&location={{ location_filter }}&sort={{ current_sort }}" class="btn">&laquo; Previous</a>
+    {% endif %}
+    <span class="page-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&status={{ status_filter }}&location={{ location_filter }}&sort={{ current_sort }}" class="btn">Next &raquo;</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+function filterJobs() {
+    var query = document.getElementById('jobSearch').value.toLowerCase();
+    var cards = document.querySelectorAll('.job-card');
+    cards.forEach(function(card) {
+        var title = card.getAttribute('data-title') || '';
+        var company = card.getAttribute('data-company') || '';
+        if (title.indexOf(query) !== -1 || company.indexOf(query) !== -1) {
+            card.style.display = '';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+{% endblock %}

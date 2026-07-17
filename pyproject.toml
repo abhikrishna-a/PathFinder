@@ -1,0 +1,18 @@
+[project]
+name = "pathfinder"
+version = "0.1.0"
+description = "Automatic job portal — fetches, matches, and applies to Python developer jobs"
+requires-python = ">=3.10"
+authors = ["Dennis Joseph"]
+dependencies = [
+    "django>=5.0",
+    "httpx[http2]",
+    "beautifulsoup4",
+    "schedule",
+    "jinja2",
+    "python-dotenv",
+    "lxml>=6.1.1",
+]
+
+[dependency-groups]
+dev = []

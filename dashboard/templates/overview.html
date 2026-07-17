@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Overview — PathFinder{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+    <div class="stat-card">
+        <span class="stat-icon">&#x27F3;</span>
+        <div class="stat-number">{{ total_jobs }}</div>
+        <div class="stat-label">Total Jobs</div>
+    </div>
+    <div class="stat-card matched">
+        <span class="stat-icon">&#x2713;</span>
+        <div class="stat-number">{{ total_matched }}</div>
+        <div class="stat-label">Matched</div>
+    </div>
+    <div class="stat-card applied">
+        <span class="stat-icon">&#x2709;</span>
+        <div class="stat-number">{{ total_applied }}</div>
+        <div class="stat-label">Applied</div>
+    </div>
+    <div class="stat-card web_apply">
+        <span class="stat-icon">&#x2197;</span>
+        <div class="stat-number">{{ total_web_apply }}</div>
+        <div class="stat-label">Web Apply</div>
+    </div>
+    <div class="stat-card failed">
+        <span class="stat-icon">&#x2717;</span>
+        <div class="stat-number">{{ total_failed }}</div>
+        <div class="stat-label">Failed</div>
+    </div>
+</div>
+
+<div class="charts-row">
+    <div class="chart-container">
+        <h3>Jobs Over Time</h3>
+        <canvas id="timelineChart"></canvas>
+    </div>
+    <div class="chart-container">
+        <h3>Top Matched Skills</h3>
+        <canvas id="skillsChart"></canvas>
+    </div>
+</div>
+
+<div class="charts-row">
+    <div class="chart-container wide">
+        <h3>Jobs by Status</h3>
+        <div class="status-bars">
+            <div class="status-bar-row">
+                <span class="status-bar-label">Matched</span>
+                <div class="status-bar-wrap">
+                    <div class="status-bar-fill matched" style="width: {{ status_pct_matched }}%"></div>
+                </div>
+                <span class="status-bar-count">{{ total_matched }}</span>
+            </div>
+            <div class="status-bar-row">
+                <span class="status-bar-label">Applied</span>
+                <div class="status-bar-wrap">
+                    <div class="status-bar-fill applied" style="width: {{ status_pct_applied }}%"></div>
+                </div>
+                <span class="status-bar-count">{{ total_applied }}</span>
+            </div>
+            <div class="status-bar-row">
+                <span class="status-bar-label">Web Apply</span>
+                <div class="status-bar-wrap">
+                    <div class="status-bar-fill web_apply" style="width: {{ status_pct_web_apply }}%"></div>
+                </div>
+                <span class="status-bar-count">{{ total_web_apply }}</span>
+            </div>
+            <div class="status-bar-row">
+                <span class="status-bar-label">Failed</span>
+                <div class="status-bar-wrap">
+                    <div class="status-bar-fill failed" style="width: {{ status_pct_failed }}%"></div>
+                </div>
+                <span class="status-bar-count">{{ total_failed }}</span>
+            </div>
+            <div class="status-bar-row">
+                <span class="status-bar-label">Ignored</span>
+                <div class="status-bar-wrap">
+                    <div class="status-bar-fill ignored" style="width: {{ status_pct_ignored }}%"></div>
+                </div>
+                <span class="status-bar-count">{{ total_ignored }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="two-col">
+    <div class="panel">
+        <h3>Recent Matched Jobs</h3>
+        {% for job in recent_jobs|slice:":5" %}
+        <div class="list-item">
+            <div class="item-header">
+                <span class="score-badge {% if job.match_score >= 50 %}high{% elif job.match_score >= 30 %}med{% else %}low{% endif %}">{{ job.match_score }}%</span>
+                <a href="{% url 'job_detail' job.id %}">{{ job.title }}</a>
+            </div>
+            <div class="item-sub">{{ job.company }} &middot; {{ job.location }} &middot; {{ job.status }}</div>
+            <div class="item-skills">
+                {% for skill in job.matched_skills|slice:":4" %}
+                <span class="skill-tag">{{ skill }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% empty %}
+        <p class="empty">No jobs yet. Run the fetcher to get started.</p>
+        {% endfor %}
+        <div class="panel-footer">
+            <a href="{% url 'job_list' %}?status=matched">View All Matched Jobs &rarr;</a>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h3>Recent Applications</h3>
+        {% for app in recent_apps|slice:":5" %}
+        <div class="list-item">
+            <div class="item-header">
+                <span class="status-badge {% if app.status == 'sent' %}sent{% else %}failed{% endif %}">{{ app.status }}</span>
+                <a href="{% url 'job_detail' app.job.id %}">{{ app.job.title }}</a>
+            </div>
+            <div class="item-sub">{{ app.job.company }} &middot; {{ app.sent_at|date:"M d, g:i A" }}</div>
+            <div class="item-skills">
+                {% for skill in app.skills_highlighted|slice:":4" %}
+                <span class="skill-tag">{{ skill }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% empty %}
+        <p class="empty">No applications sent yet.</p>
+        {% endfor %}
+        <div class="panel-footer">
+            <a href="{% url 'application_list' %}">View All Applications &rarr;</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+new Chart(document.getElementById('timelineChart'), {
+    type: 'line',
+    data: {
+        labels: {{ chart_dates|safe }},
+        datasets: [
+            { label: 'Fetched', data: {{ chart_fetched|safe }}, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.1)', fill: true, tension: 0.4, pointRadius: 3, pointHoverRadius: 6 },
+            { label: 'Matched', data: {{ chart_matched|safe }}, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,.1)', fill: true, tension: 0.4, pointRadius: 3, pointHoverRadius: 6 },
+            { label: 'Applied', data: {{ chart_applied|safe }}, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,.1)', fill: true, tension: 0.4, pointRadius: 3, pointHoverRadius: 6 },
+        ]
+    },
+    options: {
+        responsive: true,
+        interaction: { intersect: false, mode: 'index' },
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 16, color: '#94a3b8' } } },
+        scales: {
+            x: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#64748b' } },
+            y: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#64748b' } }
+        }
+    }
+});
+
+new Chart(document.getElementById('skillsChart'), {
+    type: 'bar',
+    data: {
+        labels: {{ chart_skill_labels|safe }},
+        datasets: [{
+            label: 'Matches',
+            data: {{ chart_skill_values|safe }},
+            backgroundColor: [
+                'rgba(59,130,246,.8)', 'rgba(34,197,94,.8)', 'rgba(245,158,11,.8)',
+                'rgba(139,92,246,.8)', 'rgba(6,182,212,.8)', 'rgba(249,115,22,.8)',
+                'rgba(236,72,153,.8)', 'rgba(99,102,241,.8)', 'rgba(20,184,166,.8)',
+                'rgba(239,68,68,.8)'
+            ],
+            borderRadius: 6,
+            barThickness: 20,
+        }]
+    },
+    options: {
+        responsive: true,
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#64748b', stepSize: 1 } },
+            y: { grid: { display: false }, ticks: { color: '#e8ecf4', font: { size: 12, weight: 500 } } }
+        }
+    }
+});
+{% endblock %}
