@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Skill Stats — PathFinder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Skill Analytics</h2>
+</div>
+
+<div class="charts-row">
+    <div class="chart-container wide">
+        <h3>Skills Matched Across Applications</h3>
+        <canvas id="skillBarChart"></canvas>
+    </div>
+</div>
+
+<div class="two-col">
+    <div class="panel">
+        <h3>Skill Breakdown</h3>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Skill</th>
+                    <th>Found in Jobs</th>
+                    <th>Highlighted in CL</th>
+                    <th>% of Apps</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in skill_data %}
+                <tr>
+                    <td><span class="skill-tag large">{{ s.skill_name }}</span></td>
+                    <td>{{ s.found_count }}</td>
+                    <td>{{ s.highlighted_count }}</td>
+                    <td>
+                        <div class="pct-bar">
+                            <div class="pct-fill" style="width: {{ s.pct }}%"></div>
+                            <span>{{ s.pct }}%</span>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="panel">
+        <h3>Top Skill Combos Requested</h3>
+        {% for pair, count in top_combos %}
+        <div class="combo-row">
+            <span class="combo-pair">{{ pair.0 }} + {{ pair.1 }}</span>
+            <span class="combo-count">{{ count }} jobs</span>
+        </div>
+        {% empty %}
+        <p class="empty">Not enough data yet.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+new Chart(document.getElementById('skillBarChart'), {
+    type: 'bar',
+    data: {
+        labels: {{ chart_labels|safe }},
+        datasets: [{ label: '% of Applications', data: {{ chart_values|safe }}, backgroundColor: 'rgba(59,130,246,.7)', borderRadius: 4, barThickness: 18 }]
+    },
+    options: {
+        responsive: true,
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#64748b' } },
+            y: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 12 } } }
+        }
+    }
+});
+{% endblock %}
