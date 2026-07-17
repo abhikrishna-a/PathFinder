@@ -1305,3 +1305,16 @@ main {
 
 .fetcher-status.success { color: var(--green); }
 .fetcher-status.error { color: var(--red); }
+
+/* ── Salary ──────────────────────────────────────────────────────── */
+.job-salary {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--green);
+    background: var(--green-bg);
+    border-radius: 6px;
+    white-space: nowrap;
+}
