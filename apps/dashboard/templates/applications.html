@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Applications — PathFinder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Applications <span class="count">({{ total_count }})</span></h2>
+</div>
+
+<div class="filters">
+    <div class="filter-group">
+        <label>Status</label>
+        <a href="?status=all" class="filter-btn {% if status_filter == 'all' %}active{% endif %}">All</a>
+        <a href="?status=sent" class="filter-btn {% if status_filter == 'sent' %}active{% endif %}">Sent</a>
+        <a href="?status=failed" class="filter-btn {% if status_filter == 'failed' %}active{% endif %}">Failed</a>
+    </div>
+</div>
+
+<div class="app-list">
+    {% for app in applications %}
+    <div class="app-card status-{{ app.status }}">
+        <div class="app-header">
+            <span class="status-badge {% if app.status == 'sent' %}sent{% else %}failed{% endif %}">{{ app.status }}</span>
+            <div>
+                <a href="{% url 'job_detail' app.job.id %}" class="job-title">{{ app.job.title }}</a>
+                <div class="job-meta">{{ app.job.company }} &middot; Score: {{ app.job.match_score }}%</div>
+            </div>
+            <div class="app-date">{{ app.sent_at|date:"M d, g:i A" }}</div>
+        </div>
+
+        <div class="app-skills">
+            <label>Skills matched:</label>
+            {% for skill in app.skills_highlighted %}
+            <span class="skill-tag">{{ skill }}</span>
+            {% endfor %}
+            <span class="match-pct">{{ app.skill_match_pct }}% match</span>
+        </div>
+
+        {% if app.skill_gaps %}
+        <div class="app-gaps">
+            <label>Skill gaps:</label>
+            {% for gap in app.skill_gaps %}
+            <span class="skill-tag gap">{{ gap }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if app.criteria_data %}
+        <div class="criteria-grid">
+            {% if app.criteria_data.role_level %}
+            <div class="criteria-item">
+                <span class="criteria-label">Role Level:</span>
+                <span class="criteria-value">{{ app.criteria_data.role_level }}</span>
+            </div>
+            {% endif %}
+            {% if app.criteria_data.min_years_required %}
+            <div class="criteria-item">
+                <span class="criteria-label">Exp Required:</span>
+                <span class="criteria-value">{{ app.criteria_data.min_years_required }}yr</span>
+            </div>
+            {% endif %}
+            {% if app.criteria_data.sections_included %}
+            <div class="criteria-item">
+                <span class="criteria-label">Sections:</span>
+                <span class="criteria-value">{{ app.criteria_data.sections_included|join:", " }}</span>
+            </div>
+            {% endif %}
+            {% if app.criteria_data.project_mentioned %}
+            <div class="criteria-item">
+                <span class="criteria-label">Project:</span>
+                <span class="criteria-value">{{ app.criteria_data.project_mentioned }}</span>
+            </div>
+            {% endif %}
+            {% if app.criteria_data.email_used %}
+            <div class="criteria-item">
+                <span class="criteria-label">Email:</span>
+                <span class="criteria-value">{{ app.criteria_data.email_used }}</span>
+            </div>
+            {% endif %}
+            <div class="criteria-item">
+                <span class="criteria-label">Resume:</span>
+                <span class="criteria-value{% if app.criteria_data.resume_attached %} good{% else %} bad{% endif %}">
+                    {% if app.criteria_data.resume_attached %}Attached{% else %}Missing{% endif %}
+                </span>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if app.match_explanation %}
+        <div class="app-explanation">
+            <label>Why this match:</label> {{ app.match_explanation }}
+        </div>
+        {% endif %}
+
+        {% if app.email_subject %}
+        <div class="app-email">
+            <label>Subject:</label> {{ app.email_subject }}
+        </div>
+        {% endif %}
+        {% if app.error_message %}
+        <div class="app-error">{{ app.error_message }}</div>
+        {% endif %}
+    </div>
+    {% empty %}
+    <div class="empty-state">No applications sent yet.</div>
+    {% endfor %}
+</div>
+
+{% if page_obj.has_other_pages %}
+<div class="pagination">
+    {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&status={{ status_filter }}" class="btn">&laquo; Previous</a>
+    {% endif %}
+    <span class="page-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&status={{ status_filter }}" class="btn">Next &raquo;</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
