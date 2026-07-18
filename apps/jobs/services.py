@@ -86,6 +86,9 @@ def save_job(job_data: dict) -> Job:
         search_text = f"{job_data.get('full_text', '')} {job_data.get('description', '')}"
         salary, salary_display = _extract_salary_from_text(search_text)
 
+    if salary and not salary_display:
+        salary_display = _format_salary(salary)
+
     description = job_data.get("description", "")
     if description and "<" in description:
         description = html_to_markdown(description)

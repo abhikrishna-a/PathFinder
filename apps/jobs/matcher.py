@@ -172,8 +172,9 @@ def match_job(job: dict) -> dict:
             return _reject_job(job, f"Not a target role: {job.get('title', '')}")
 
     salary = job.get("salary", 0)
+    salary_display = job.get("salary_display", "")
     if not salary:
-        salary, _ = _extract_salary_from_text(search_text)
+        salary, salary_display = _extract_salary_from_text(search_text)
     if salary and salary < MIN_SALARY:
         return _reject_job(job, f"Salary too low (\u20b9{salary:,})")
 
@@ -263,6 +264,7 @@ def match_job(job: dict) -> dict:
     job["status"] = status
     job["relevant_project"] = project
     job["salary"] = salary
+    job["salary_display"] = salary_display
     job["filter_reason"] = ""
     job["match_explanation"] = explanation
 
