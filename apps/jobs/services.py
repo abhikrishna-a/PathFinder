@@ -7,7 +7,7 @@ from datetime import date
 import httpx
 from django.db.models import Count
 
-from apps.jobs.models import Job, Application, SkillLog, DailyStats
+from apps.jobs.models import Job, Application, SkillLog, DailyStats, RawJob, JobEvent
 from config.constants import RECRUITER_KEYWORDS
 from config.settings import MIN_SALARY
 from common.utils import is_company_email as _validate_company_email, EMAIL_REGEX, JUNK_DOMAINS, html_to_markdown
@@ -114,6 +114,19 @@ def save_job(job_data: dict) -> Job:
             "salary_display": salary_display,
         },
     )
+
+    if not created:
+        new_status = job_data.get("status", "")
+        if new_status and new_status != job.status:
+            old_status = job.status
+            job.status = new_status
+            job.save()
+            JobEvent.objects.create(
+                job=job, event_type="status_changed",
+                old_status=old_status, new_status=new_status,
+                match_score=job_data.get("match_score", 0),
+            )
+
     return job
 
 
@@ -193,16 +206,13 @@ def save_web_apply(job: Job, result: dict) -> Application:
     return app
 
 
-def update_daily_stats(
-    fetched: int = 0, matched: int = 0, applied: int = 0,
-    ignored: int = 0, failed: int = 0,
-):
+def update_daily_stats():
     today = date.today()
     stats, _ = DailyStats.objects.get_or_create(date=today)
-    stats.total_fetched = Job.objects.filter(fetched_date__date=today).count()
-    stats.total_matched = Job.objects.filter(fetched_date__date=today).exclude(status="ignored").count()
+    stats.total_fetched = RawJob.objects.filter(fetched_at__date=today).count()
+    stats.total_matched = JobEvent.objects.filter(event_type="matched", created_at__date=today).count()
     stats.total_applied = Application.objects.filter(sent_at__date=today, status="sent").count()
-    stats.total_ignored = Job.objects.filter(fetched_date__date=today, status="ignored").count()
+    stats.total_ignored = JobEvent.objects.filter(event_type="ignored", created_at__date=today).count()
     stats.total_failed = Application.objects.filter(sent_at__date=today, status="failed").count()
 
     top_skills = (

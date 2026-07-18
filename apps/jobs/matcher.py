@@ -270,7 +270,7 @@ def match_job(job: dict) -> dict:
 
 
 def match_all_jobs(jobs: list[dict]) -> list[dict]:
-    matched = []
+    all_jobs = []
     ignored_count = 0
     north_india_blocked = 0
     salary_blocked = 0
@@ -290,15 +290,14 @@ def match_all_jobs(jobs: list[dict]) -> list[dict]:
         elif reason.startswith("Too many missing skills"):
             skill_gap_blocked += 1
 
-        if result["status"] != "ignored":
-            matched.append(result)
-        else:
+        all_jobs.append(result)
+        if result["status"] == "ignored":
             ignored_count += 1
 
-    matched.sort(key=lambda j: j["match_score"], reverse=True)
+    all_jobs.sort(key=lambda j: j["match_score"], reverse=True)
     logger.info(
-        f"Matched {len(matched)}, ignored {ignored_count} "
+        f"Processed {len(all_jobs)} total: {len(all_jobs) - ignored_count} matched, {ignored_count} ignored "
         f"(North India: {north_india_blocked}, Salary: {salary_blocked}, "
         f"Experience: {experience_blocked}, Skill gaps: {skill_gap_blocked})"
     )
-    return matched
+    return all_jobs
