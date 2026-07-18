@@ -7,7 +7,7 @@ import json as json_mod
 import httpx
 
 from config.queries import TECHNOPARK_QUERIES
-from common.utils import make_uid, clean_html
+from common.utils import make_uid, html_to_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ def fetch_technopark_jobs(max_per_query: int = 25) -> list[dict]:
                     job_id = item.get("id", 0)
 
                     detail = _fetch_job_detail(job_id, title, client)
-                    description = clean_html(detail.get("job_description", ""))
+                    description = html_to_markdown(detail.get("job_description", ""))
                     contact_email = detail.get("contact_email", "")
                     location = (
                         detail.get("address", "")

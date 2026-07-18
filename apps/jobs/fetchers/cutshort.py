@@ -7,7 +7,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from config.queries import CUTSHORT_SEARCH_URLS
-from common.utils import make_uid, clean_html
+from common.utils import make_uid, html_to_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def _parse_job(job: dict) -> dict | None:
     max_exp = exp_data.get("max", 0)
 
     description_html = job.get("sanitizedComment", "")
-    description = clean_html(description_html)
+    description = html_to_markdown(description_html)
 
     skills = job.get("allSkills", [])
 
