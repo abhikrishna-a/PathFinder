@@ -20,71 +20,105 @@ export default function LocationStats() {
     });
   }, []);
 
-  return (
-    <>
-      <div className="page-header">
-        <h2>Location Statistics <span className="count">({total} jobs)</span></h2>
-      </div>
+  if (loading) {
+    return (
+      <>
+        <div className="page-header"><h2>Locations</h2></div>
+        <div className="st-loading">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="pf-skeleton pf-skeleton-line" style={{ height: 36, width: `${80 - i * 10}%` }} />
+          ))}
+        </div>
+      </>
+    );
+  }
 
-      {loading && <div className="empty-guidance"><h3>Loading...</h3></div>}
-
-      {!loading && locations.length === 0 && (
-        <div className="empty-guidance">
-          <div className="empty-icon">&#127758;</div>
+  if (locations.length === 0) {
+    return (
+      <>
+        <div className="page-header"><h2>Locations</h2></div>
+        <div className="st-empty">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+            <circle cx="12" cy="10" r="3" />
+          </svg>
           <h3>No location data</h3>
           <p>Location statistics will appear once jobs are fetched.</p>
         </div>
-      )}
+      </>
+    );
+  }
 
-      {!loading && locations.length > 0 && (
-        <>
-          {/* Horizontal bar chart */}
-          <div className="card card-dashboard" style={{ marginBottom: "1.5rem", padding: "1.5rem" }}>
-            <h3 style={{ marginBottom: "1rem" }}>Job Distribution by Location</h3>
-            {locations.map((l) => (
-              <div key={l.location} style={{ display: "flex", alignItems: "center", marginBottom: "0.5rem" }}>
-                <span style={{ width: "140px", fontSize: "0.85rem", textAlign: "right", paddingRight: "12px", flexShrink: 0 }}>
-                  {l.location || "Unknown"}
-                </span>
-                <div style={{ flex: 1, background: "var(--bg-secondary, #1a1a2e)", borderRadius: "4px", height: "22px", overflow: "hidden" }}>
-                  <div style={{
-                    width: `${l.pct}%`,
-                    height: "100%",
-                    background: "linear-gradient(90deg, var(--accent, #6c63ff), var(--accent-hover, #8b83ff))",
-                    borderRadius: "4px",
-                    transition: "width 0.6s ease",
-                  }} />
-                </div>
-                <span style={{ width: "80px", fontSize: "0.8rem", paddingLeft: "8px", flexShrink: 0 }}>
-                  {l.count} ({l.pct}%)
-                </span>
+  const top = locations[0];
+  const topPct = top ? top.pct : 0;
+
+  return (
+    <>
+      <div className="page-header">
+        <h2>Locations <span className="count">({total} jobs)</span></h2>
+      </div>
+
+      {/* Summary cards */}
+      <div className="st-summary-row">
+        <div className="st-summary-card">
+          <span className="st-summary-value">{locations.length}</span>
+          <span className="st-summary-label">Regions</span>
+        </div>
+        <div className="st-summary-card">
+          <span className="st-summary-value">{top?.location || "—"}</span>
+          <span className="st-summary-label">Top Region</span>
+        </div>
+        <div className="st-summary-card">
+          <span className="st-summary-value">{topPct}%</span>
+          <span className="st-summary-label">Top Region Share</span>
+        </div>
+      </div>
+
+      {/* Bar chart */}
+      <div className="st-card">
+        <h3 className="st-card-title">Job Distribution by Location</h3>
+        <div className="st-bars">
+          {locations.map((l) => (
+            <div key={l.location} className="st-bar-row">
+              <span className="st-bar-label">{l.location || "Unknown"}</span>
+              <div className="st-bar-track">
+                <div className="st-bar-fill" style={{ width: `${Math.max(l.pct, 1)}%` }} />
               </div>
-            ))}
-          </div>
+              <span className="st-bar-value">{l.count}</span>
+              <span className="st-bar-pct">{l.pct}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
-          {/* Table */}
-          <div className="card card-dashboard">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Location</th>
-                  <th>Count</th>
-                  <th>%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {locations.map((l) => (
-                  <tr key={l.location}>
-                    <td>{l.location || "Unknown"}</td>
-                    <td>{l.count}</td>
-                    <td>{l.pct}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+      {/* Table */}
+      <div className="st-card">
+        <h3 className="st-card-title">All Locations</h3>
+        <table className="st-table">
+          <thead>
+            <tr>
+              <th>Location</th>
+              <th className="st-col-right">Jobs</th>
+              <th className="st-col-right">Share</th>
+              <th className="st-col-right">Distribution</th>
+            </tr>
+          </thead>
+          <tbody>
+            {locations.map((l) => (
+              <tr key={l.location}>
+                <td className="st-cell-name">{l.location || "Unknown"}</td>
+                <td className="st-cell-right st-cell-num">{l.count}</td>
+                <td className="st-cell-right st-cell-num">{l.pct}%</td>
+                <td className="st-cell-right">
+                  <div className="st-table-bar">
+                    <div className="st-table-bar-fill" style={{ width: `${Math.max(l.pct, 1)}%` }} />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }
