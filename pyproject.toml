@@ -20,6 +20,8 @@ dependencies = [
     "schedule",
     "python-dotenv",
     "lxml>=4.9",
+    "djangorestframework>=3.17.1",
+    "django-cors-headers>=4.9.0",
 ]
 
 [dependency-groups]
