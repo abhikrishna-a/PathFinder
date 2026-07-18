@@ -61,6 +61,39 @@ def clean_html(html_text: str) -> str:
     return text
 
 
+def html_to_markdown(html_text: str) -> str:
+    """Convert HTML to markdown, preserving formatting."""
+    if not html_text:
+        return ""
+    if "<" not in html_text:
+        return html_text.strip()
+
+    text = html_text
+
+    text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?p[^>]*>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?div[^>]*>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?li[^>]*>', '\n- ', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?[ou]l[^>]*>', '\n', text, flags=re.IGNORECASE)
+
+    text = re.sub(r'<a\s+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', r'[\2](\1)', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?b[^>]*>', '**', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?strong[^>]*>', '**', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?i[^>]*>', '*', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?em[^>]*>', '*', text, flags=re.IGNORECASE)
+
+    text = re.sub(r'<[^>]+>', '', text)
+
+    import html as html_mod
+    text = html_mod.unescape(text)
+
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r'[^\S\n]+', ' ', text)
+    lines = [line.strip() for line in text.split('\n')]
+    text = '\n'.join(lines)
+    return text.strip()
+
+
 def safe_console(text: str) -> str:
     """Make text safe for Windows console output."""
     try:
