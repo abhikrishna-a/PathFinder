@@ -32,6 +32,11 @@ class Job(models.Model):
     uid = models.CharField(max_length=500, unique=True)
     salary = models.IntegerField(default=0, db_index=True)
     salary_display = models.CharField(max_length=50, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+    first_seen_raw_id = models.ForeignKey(
+        "jobs.RawJob", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="promoted_jobs",
+    )
 
     class Meta:
         ordering = ["-match_score", "-fetched_date"]
