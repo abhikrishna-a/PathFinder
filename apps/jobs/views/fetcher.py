@@ -97,7 +97,6 @@ def _run_fetcher_background():
 
             if email and job_data["match_score"] >= MATCH_THRESHOLD_APPLY:
                 result = apply_to_job(job_data)
-                job = save_job(job_data)
                 old_status = job.status
                 job.status = "applied"
                 job.save()
@@ -113,7 +112,6 @@ def _run_fetcher_background():
                     failed_apply += 1
             elif not email and job_data.get("apply_url") and job_data["match_score"] >= MATCH_THRESHOLD_APPLY:
                 result = apply_to_job(job_data)
-                job = save_job(job_data)
                 old_status = job.status
                 job.status = "web_apply"
                 job.save()

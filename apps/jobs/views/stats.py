@@ -15,7 +15,7 @@ class OverviewStats(BaseAPIView):
         total_applied = Application.objects.filter(status="sent").count()
         total_failed = Application.objects.filter(status="failed").count()
         total_ignored = Job.objects.filter(status="ignored").count()
-        total_web_apply = Job.objects.filter(status="web_apply").count()
+        total_web_apply = Application.objects.filter(status="web_apply").count()
 
         recent_jobs = list(
             Job.objects
