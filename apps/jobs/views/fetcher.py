@@ -22,13 +22,33 @@ def _run_fetcher_background():
             save_job, save_application, save_web_apply,
             update_daily_stats, job_exists,
         )
-        from apps.jobs.models import Application
+        from apps.jobs.models import Application, RawJob, JobEvent
         from config.settings import MATCH_THRESHOLD_APPLY
 
         _fetcher_running = True
 
         raw_jobs = fetch_all_jobs()
-        matched_jobs = match_all_jobs(raw_jobs)
+        batch_id = RawJob.new_batch_id()
+
+        for r in raw_jobs:
+            RawJob.objects.create(
+                uid=r.get("uid", ""),
+                title=r.get("title", ""),
+                company=r.get("company", ""),
+                location=r.get("location", ""),
+                description=r.get("description", ""),
+                source=r.get("source", ""),
+                posted_date=r.get("posted_date", ""),
+                apply_url=r.get("apply_url", ""),
+                search_query=r.get("search_query", ""),
+                salary=r.get("salary", 0),
+                salary_display=r.get("salary_display", ""),
+                full_text=r.get("full_text", ""),
+                fetch_batch_id=batch_id,
+                raw_payload=r,
+            )
+
+        all_jobs = match_all_jobs(raw_jobs)
 
         already_applied_uids = set(
             Application.objects.select_related("job")
@@ -36,8 +56,10 @@ def _run_fetcher_background():
         )
 
         apply_candidates = [
-            j for j in matched_jobs
-            if j["match_score"] >= MATCH_THRESHOLD_APPLY and j["uid"] not in already_applied_uids
+            j for j in all_jobs
+            if j["match_score"] >= MATCH_THRESHOLD_APPLY
+            and j["status"] != "ignored"
+            and j["uid"] not in already_applied_uids
         ]
 
         if apply_candidates:
@@ -47,11 +69,26 @@ def _run_fetcher_background():
         web_applied = 0
         failed_apply = 0
 
-        for job_data in matched_jobs:
-            if job_data["uid"] in already_applied_uids:
+        for job_data in all_jobs:
+            if job_data["status"] == "ignored":
+                job = save_job(job_data)
+                JobEvent.objects.create(
+                    job=job, event_type="ignored",
+                    old_status="", new_status="ignored",
+                    match_score=job_data.get("match_score", 0),
+                )
                 continue
 
-            save_job(job_data)
+            if job_data["uid"] in already_applied_uids:
+                save_job(job_data)
+                continue
+
+            job = save_job(job_data)
+            JobEvent.objects.create(
+                job=job, event_type="matched",
+                old_status="", new_status=job.status,
+                match_score=job_data.get("match_score", 0),
+            )
 
             email = job_data.get("apply_email", "")
             if email and not is_company_email(email, job_data.get("company", "")):
@@ -61,8 +98,14 @@ def _run_fetcher_background():
             if email and job_data["match_score"] >= MATCH_THRESHOLD_APPLY:
                 result = apply_to_job(job_data)
                 job = save_job(job_data)
+                old_status = job.status
                 job.status = "applied"
                 job.save()
+                JobEvent.objects.create(
+                    job=job, event_type="applied",
+                    old_status=old_status, new_status="applied",
+                    match_score=job_data.get("match_score", 0),
+                )
                 save_application(job, result)
                 if result["success"]:
                     applied += 1
@@ -71,23 +114,22 @@ def _run_fetcher_background():
             elif not email and job_data.get("apply_url") and job_data["match_score"] >= MATCH_THRESHOLD_APPLY:
                 result = apply_to_job(job_data)
                 job = save_job(job_data)
+                old_status = job.status
                 job.status = "web_apply"
                 job.save()
+                JobEvent.objects.create(
+                    job=job, event_type="web_apply",
+                    old_status=old_status, new_status="web_apply",
+                    match_score=job_data.get("match_score", 0),
+                )
                 save_web_apply(job, result)
                 web_applied += 1
 
-        ignored_count = len(raw_jobs) - len(matched_jobs)
-        update_daily_stats(
-            fetched=len(raw_jobs),
-            matched=len(matched_jobs),
-            applied=applied,
-            ignored=ignored_count,
-            failed=failed_apply,
-        )
+        update_daily_stats()
 
         logger.info(
-            "Fetcher complete: fetched=%d matched=%d applied=%d web_apply=%d failed=%d",
-            len(raw_jobs), len(matched_jobs), applied, web_applied, failed_apply,
+            "Fetcher complete: raw=%d batch=%s total=%d applied=%d web_apply=%d failed=%d",
+            len(raw_jobs), batch_id, len(all_jobs), applied, web_applied, failed_apply,
         )
     except Exception:
         logger.exception("Fetcher failed")

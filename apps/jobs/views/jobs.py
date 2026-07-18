@@ -17,6 +17,8 @@ class JobList(BaseAPIView):
 
         if status_filter != "all":
             jobs = jobs.filter(status=status_filter)
+        else:
+            jobs = jobs.exclude(status="ignored")
 
         if location_filter == "kerala":
             jobs = jobs.filter(location__icontains="kerala")

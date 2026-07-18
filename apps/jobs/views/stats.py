@@ -3,15 +3,15 @@ from collections import Counter
 from django.db.models import Count, Q, Avg
 from rest_framework.response import Response
 
-from apps.jobs.models import Job, Application, SkillLog, DailyStats
+from apps.jobs.models import Job, Application, SkillLog, DailyStats, RawJob
 from apps.jobs.views.base import BaseAPIView
 from config.settings import DASHBOARD_STATS_DAYS
 
 
 class OverviewStats(BaseAPIView):
     def get(self, request):
-        total_jobs = Job.objects.count()
-        total_matched = Job.objects.filter(status="matched").count()
+        total_jobs = RawJob.objects.count()
+        total_matched = Job.objects.exclude(status="ignored").count()
         total_applied = Application.objects.filter(status="sent").count()
         total_failed = Application.objects.filter(status="failed").count()
         total_ignored = Job.objects.filter(status="ignored").count()
