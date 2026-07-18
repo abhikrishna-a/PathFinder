@@ -1,0 +1,53 @@
+export interface Job {
+  id: number;
+  title: string;
+  company: string;
+  location: string;
+  source: string;
+  posted_date: string;
+  fetched_date: string;
+  match_score: number;
+  status: string;
+  matched_skills: string[];
+  salary: number;
+  salary_display: string;
+  job_url: string;
+  uid: string;
+  apply_email: string;
+  apply_url: string;
+}
+
+export interface JobDetail extends Job {
+  description: string;
+  skill_score_breakdown: Record<string, number>;
+  skill_gaps: string[];
+  match_explanation: string;
+  filter_reason: string;
+  search_query: string;
+  application: Application | null;
+}
+
+export interface Application {
+  id: number;
+  job: Job;
+  sent_at: string;
+  status: string;
+  email_subject: string;
+  cover_letter_text: string;
+  error_message: string;
+  skills_highlighted: string[];
+  skills_in_job_desc: string[];
+  skill_match_pct: number;
+  criteria_data: Record<string, unknown>;
+  skill_gaps: string[];
+  match_explanation: string;
+}
+
+export interface PaginatedResponse<T> {
+  count: number;
+  page: number;
+  total_pages: number;
+  next: boolean;
+  previous: boolean;
+  results: T[];
+}
