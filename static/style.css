@@ -1242,3 +1242,79 @@ main {
     .stat-card { padding: 16px 12px; }
     .stat-number { font-size: 28px; }
 }
+
+/* ── Fetcher Button ──────────────────────────────────────────────── */
+.fetcher-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.btn-fetcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+    font-family: inherit;
+}
+
+.btn-fetcher:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(59, 130, 246, .35);
+}
+
+.btn-fetcher:disabled {
+    opacity: .7;
+    cursor: not-allowed;
+}
+
+.btn-fetcher-loading {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, .3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.fetcher-status {
+    font-size: 13px;
+    font-weight: 500;
+    transition: all var(--transition);
+}
+
+.fetcher-status.success { color: var(--green); }
+.fetcher-status.error { color: var(--red); }
+
+/* ── Salary ──────────────────────────────────────────────────────── */
+.job-salary {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--green);
+    background: var(--green-bg);
+    border-radius: 6px;
+    white-space: nowrap;
+}
