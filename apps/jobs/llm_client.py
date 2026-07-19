@@ -1,8 +1,88 @@
 import logging
+import re
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+REASONING_MODELS = {
+    "deepseek-r1",
+    "qwq",
+    "o1",
+    "o3",
+    "o4-mini",
+    "qwen-qwq",
+}
+
+
+def _strip_think_tags(text: str) -> str:
+    text = re.sub(r"<think>[\s\S]*?</think>?", "", text)
+    text = re.sub(r"<thinking>[\s\S]*?</thinking>?", "", text)
+    text = re.sub(r"<thought>[\s\S]*?</thought>?", "", text)
+    text = re.sub(r"^\s*\d+\.\s+\*{2}.*$", "", text, flags=re.MULTILINE)
+    return text.strip()
+
+
+def _is_usable(text: str) -> bool:
+    if not text:
+        return False
+    return len(text.split()) >= 50
+
+
+def _detect_reasoning_model(model: str) -> bool:
+    model_lower = model.lower()
+    return any(alias in model_lower for alias in REASONING_MODELS)
+
+
+def _get_payload(
+    system_prompt: str,
+    user_prompt: str,
+    model: str,
+    *,
+    reasoning_disabled: bool = False,
+) -> dict:
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "max_tokens": 4000,
+        "temperature": 0.7,
+    }
+    if reasoning_disabled:
+        payload["reasoning"] = {"enabled": False}
+    return payload
+
+
+def _call_api(url: str, headers: dict, payload: dict) -> tuple[str, str] | tuple[None, str]:
+    try:
+        with httpx.Client(timeout=60.0) as client:
+            resp = client.post(url, json=payload, headers=headers)
+    except httpx.TimeoutException:
+        return None, "timeout"
+    except Exception as e:
+        return None, f"exception: {e}"
+
+    if resp.status_code != 200:
+        return None, f"HTTP {resp.status_code}: {resp.text[:300]}"
+
+    data = resp.json()
+    choices = data.get("choices", [])
+    if not choices:
+        return None, "no choices returned"
+
+    choice = choices[0]
+    message = choice.get("message", {})
+    finish_reason = choice.get("finish_reason", "unknown")
+
+    reasoning = message.get("reasoning_content", "") or ""
+    content = message.get("content", "") or ""
+
+    if not content and reasoning:
+        return None, f"reasoning-only (finish_reason={finish_reason}, tokens={len(reasoning)})"
+
+    return content.strip(), finish_reason
 
 
 def generate_with_llm(
@@ -11,46 +91,51 @@ def generate_with_llm(
     api_key: str,
     api_base_url: str,
     model: str,
+    *,
+    provider: str = "",
 ) -> str | None:
     url = f"{api_base_url.rstrip('/')}/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "max_tokens": 500,
-        "temperature": 0.7,
-    }
 
-    try:
-        with httpx.Client(timeout=20.0) as client:
-            resp = client.post(url, json=payload, headers=headers)
+    is_reasoning = _detect_reasoning_model(model)
 
-        if resp.status_code != 200:
-            logger.error(f"LLM API error {resp.status_code}: {resp.text[:300]}")
-            return None
+    content, finish_reason = _call_api(
+        url, headers,
+        _get_payload(system_prompt, user_prompt, model, reasoning_disabled=is_reasoning),
+    )
 
-        data = resp.json()
-        choices = data.get("choices", [])
-        if not choices:
-            logger.error("LLM returned no choices")
-            return None
+    if content:
+        letter = _strip_think_tags(content)
+        if _is_usable(letter):
+            return letter
+        logger.warning(
+            "LLM output too short (finish_reason=%s, words=%d): %s",
+            finish_reason, len(letter.split()), letter[:200],
+        )
+    else:
+        logger.warning("LLM attempt 1 failed: %s", finish_reason)
 
-        text = choices[0].get("message", {}).get("content", "").strip()
-        if not text:
-            logger.error("LLM returned empty content")
-            return None
+    strict_system = system_prompt + (
+        "\n\nIMPORTANT: Output the final cover letter DIRECTLY. "
+        "No preamble, no analysis, no commentary."
+    )
+    content2, finish_reason2 = _call_api(
+        url, headers,
+        _get_payload(strict_system, user_prompt, model, reasoning_disabled=is_reasoning),
+    )
 
-        return text
+    if content2:
+        letter2 = _strip_think_tags(content2)
+        if _is_usable(letter2):
+            return letter2
+        logger.warning(
+            "LLM retry too short (finish_reason=%s, words=%d): %s",
+            finish_reason2, len(letter2.split()), letter2[:200],
+        )
+    else:
+        logger.warning("LLM attempt 2 failed: %s", finish_reason2)
 
-    except httpx.TimeoutException:
-        logger.error("LLM API timeout after 20s")
-        return None
-    except Exception as e:
-        logger.error(f"LLM API call failed: {e}")
-        return None
+    return None
