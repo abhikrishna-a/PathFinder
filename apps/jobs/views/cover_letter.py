@@ -3,6 +3,7 @@ import re
 
 from django.shortcuts import get_object_or_404
 from rest_framework import status
+from rest_framework.response import Response
 
 from apps.jobs.models import AIConfig, Job, Application
 from apps.jobs.llm_client import generate_with_llm
@@ -16,6 +17,28 @@ def _clean_cover_letter(text: str) -> str:
     text = re.sub(r"\s*--\s*", ", ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
+
+
+def _build_signature() -> str:
+    name = PROFILE.get("name", "Developer")
+    phone = PROFILE.get("phone", "")
+    email = PROFILE.get("email", "")
+    portfolio = PROFILE.get("portfolio", "")
+    github = PROFILE.get("github", "")
+    linkedin = PROFILE.get("linkedin", "")
+
+    lines = [name]
+    if phone:
+        lines.append(phone)
+    if email:
+        lines.append(email)
+    if portfolio:
+        lines.append(portfolio)
+    if github:
+        lines.append(f"GitHub: {github}")
+    if linkedin:
+        lines.append(f"LinkedIn: {linkedin}")
+    return "\n".join(lines)
 
 
 def _compute_skill_gap(job) -> tuple[str, str]:
@@ -63,25 +86,7 @@ def _compute_skill_gap(job) -> tuple[str, str]:
 
 
 def _build_system_prompt() -> str:
-    name = PROFILE.get("name", "Developer")
-    phone = PROFILE.get("phone", "")
-    email = PROFILE.get("email", "")
-    portfolio = PROFILE.get("portfolio", "")
-    github = PROFILE.get("github", "")
-    linkedin = PROFILE.get("linkedin", "")
-
-    signature_lines = [name]
-    if phone:
-        signature_lines.append(phone)
-    if email:
-        signature_lines.append(email)
-    if portfolio:
-        signature_lines.append(portfolio)
-    if github:
-        signature_lines.append(f"GitHub: {github}")
-    if linkedin:
-        signature_lines.append(f"LinkedIn: {linkedin}")
-    signature = "\n".join(signature_lines)
+    signature = _build_signature()
 
     return f"""You are a professional cover letter writer for a software developer.
 
@@ -135,6 +140,17 @@ NUMERIC CLAIM RULE -- MANDATORY, NON-NEGOTIABLE:
 - If no specific number supports the point you want to make, make the point WITHOUT a number rather than inventing one. A qualitative claim with no number is always safer and more honest than a fabricated statistic.
 - Before finalizing, check every number in your draft against the source data: can you point to the exact sentence in PROJECTS/EXPERIENCE it came from, attached to the same claim? If not, delete it or rewrite without it.
 
+GROUNDED CLAIM RULE -- MANDATORY:
+- Every claim about a skill, practice, or capability (e.g. testing, monitoring, code review, CI/CD, security practices) must be backed by something specific in the candidate's PROJECTS or EXPERIENCE data below -- not just a general category match.
+- Do NOT write soft, unverifiable claims like 'I'm comfortable with testing' or 'I have experience with the full lifecycle including testing' unless the source data actually names a specific testing tool, framework, or practice (e.g. pytest, Jest, CI test suite, integration tests). A vague gesture at a skill with no supporting detail is a red flag to reviewers -- it reads as filling a checklist rather than describing real experience.
+- If the job requires a skill (e.g. testing) that has no specific, nameable backing in the candidate's data, do NOT mention that skill at all, vague or otherwise. Silence on an unaddressed requirement is more credible than a soft, unsupported claim about it. It is better to leave a gap unaddressed than to paper over it with vague language.
+- This applies to any skill category, not just testing: monitoring, security, accessibility, compliance, etc. -- same rule.
+
+JD TECHNOLOGY LIST RULE:
+- When the job description lists multiple technologies together (e.g. 'REST, webhooks, and OAuth' or 'Go, Java, Python, or C++'), you may NEVER claim the full list as something you have experience with as a group.
+- Check each individual item in that list separately against the candidate's actual PROJECTS and EXPERIENCE data. Only mention the specific items that are individually present in the source data. Drop the rest silently -- do not round up to 'familiar territory' or 'exposure to' for items not explicitly in the source data.
+- Never claim a skill 'from both projects' or 'from my experience' as a blanket statement without verifying it's true for EACH project or experience entry you're attributing it to. If OAuth is true for Project A but not Project B, say so specifically tied to Project A only -- do not generalize it across both.
+
 TONE -- WRITE LIKE A HUMAN, NOT AN AI:
 - Write the way a sharp engineer would actually write to a hiring manager they respect -- direct, specific, a little informal in rhythm, not corporate-polished.
 - Vary sentence length deliberately. Follow a longer sentence with a short one. Avoid three sentences in a row with the same length and structure -- that rhythm is a known AI tell.
@@ -143,6 +159,10 @@ TONE -- WRITE LIKE A HUMAN, NOT AN AI:
 - Avoid corporate transition phrases: 'Furthermore', 'Moreover', 'In addition to this', 'It is worth noting that'. Just state the next point directly.
 - Every sentence should contain either a specific technical detail, a real outcome, or a direct connection to something the job actually asks for. If a sentence could be deleted without losing any specific information, delete it.
 - One instance of genuine personality or specific curiosity about the company/problem is good (e.g. naming a real detail from the JD that's interesting, not just matching keywords). Flattery without specifics ('I'm impressed by your innovative culture') is banned.
+
+SENTENCE STRUCTURE RULE:
+- Do not write sentences with more than two comma-separated clauses stacked before the main verb. If a sentence needs to list multiple things (e.g. 'event streaming, RAG pipelines, and multi-service coordination') AND make a claim about them (e.g. 'has accelerated my growth'), split it into two sentences: one that lists/describes the work, and a second, short one that makes the claim. Short sentences after a longer one are good rhythm -- long embedded-list sentences that bury the main verb are not.
+- Read every sentence and check: can a reader identify the subject and main verb within the first 12-15 words? If not, restructure it.
 
 PROJECT ATTRIBUTION RULE:
 - Each project can only be described using the technologies and responsibilities listed for that specific project in the PROJECTS section of the prompt.
@@ -166,7 +186,13 @@ SENIORITY AWARENESS RULE:
 - If the candidate's experience level roughly matches or exceeds what the title implies, this rule does not apply -- write normally.
 
 SIGNATURE (append exactly as-is at the end of the letter):
-{signature}"""
+{signature}
+
+FINAL CHECK (do this silently before outputting):
+- Re-read your full draft once for spelling and word-choice errors (e.g. 'rolloff' instead of 'rollout', or any other malformed word). Fix any you find.
+- Confirm every technology name is spelled correctly and matches standard industry naming (e.g. 'PostgreSQL' not 'Postgre SQL', 'Kubernetes' not 'Kuberneters').
+- Confirm the letter still satisfies every rule above (grounded claims, no repeated JD phrases, salutation present, signature intact, no fabricated numbers) before finalizing your output.
+- Only output the final, corrected version -- never show your proofreading process."""
 
 
 def _build_user_prompt(job) -> str:
@@ -239,32 +265,6 @@ INSTRUCTIONS:
 - Do NOT add any text before or after the cover letter."""
 
 
-def _check_project_attribution(letter: str) -> list[str]:
-    """Scan the letter for project-name mentions and flag if a skill appears in the
-    same sentence/vicinity that isn't in that project's actual tech list per PROFILE.
-    Returns a list of warning strings (does not modify the letter)."""
-    warnings = []
-    projects = PROFILE.get("projects", [])
-    sentences = re.split(r'(?<=[.!?])\s+', letter)
-    for p in projects:
-        proj_name = p["name"]
-        proj_tech_lower = {t.lower() for t in p.get("tech", [])}
-        for sent in sentences:
-            if proj_name.lower() in sent.lower():
-                all_known_terms = set()
-                for other_p in projects:
-                    all_known_terms.update(t.lower() for t in other_p.get("tech", []))
-                for cat_skills in PROFILE.get("skills", {}).values():
-                    all_known_terms.update(s.lower() for s in cat_skills)
-                for term in all_known_terms:
-                    if term in sent.lower() and term not in proj_tech_lower:
-                        warnings.append(
-                            f"Possible misattribution: '{term}' mentioned near "
-                            f"'{proj_name}' but not in {proj_name}'s tech list"
-                        )
-    return warnings
-
-
 _COVERAGE_KEYWORDS = {
     "test": ["test", "testing", "unit test", "integration test", "end-to-end", "e2e"],
     "ci/cd": ["ci/cd", "ci cd", "continuous integration", "continuous deployment", "pipeline"],
@@ -305,6 +305,229 @@ def _check_requirement_coverage(job, letter: str) -> list[str]:
             )
 
     return warnings
+
+
+_AGGREGATE_REFERENCES = {
+    "both projects", "both codebases", "both platforms", "each project",
+    "these projects", "all my projects", "across both", "both applications",
+}
+
+_ACRONYM_MAP = {
+    "drf": "django rest framework",
+    "django rest framework": "drf",
+    "llm": "large language model",
+    "large language model": "llm",
+    "rag": "retrieval augmented generation",
+    "retrieval augmented generation": "rag",
+    "ci/cd": "continuous integration continuous deployment",
+    "continuous integration continuous deployment": "ci/cd",
+    "ci cd": "continuous integration continuous deployment",
+    "rbac": "role based access control",
+    "role based access control": "rbac",
+    "api": "application programming interface",
+    "application programming interface": "api",
+    "rest": "representational state transfer",
+    "representational state transfer": "rest",
+    "sql": "structured query language",
+    "structured query language": "sql",
+    "aws": "amazon web services",
+    "amazon web services": "aws",
+    "gcp": "google cloud platform",
+    "google cloud platform": "gcp",
+    "e2e": "end to end",
+    "end to end": "e2e",
+}
+
+# If a project has any skill in the "trigger" set, also allow all skills in the "allow" set.
+# This covers cases like: LangChain/RAG → obviously uses LLMs.
+_SEMANTIC_CLUSTERS = [
+    ({"langchain", "rag", "ai agents", "llm", "opentelemetry"}, {"langchain", "rag", "ai agents", "llm", "opentelemetry"}),
+]
+
+
+def _project_allowed_terms(project: dict) -> set[str]:
+    """Build the full set of terms allowed for a project: its tech list,
+    words from its description, acronym equivalents, and semantic clusters."""
+    allowed = set()
+    for t in project.get("tech", []):
+        allowed.add(t.lower())
+        if t.lower() in _ACRONYM_MAP:
+            allowed.add(_ACRONYM_MAP[t.lower()])
+    desc = project.get("description", "")
+    for word in re.findall(r'\b[a-zA-Z]{3,}\b', desc.lower()):
+        allowed.add(word)
+    # Acronym mappings for individual skills
+    for cat_skills in PROFILE.get("skills", {}).values():
+        for s in cat_skills:
+            s_lower = s.lower()
+            if s_lower in _ACRONYM_MAP and _ACRONYM_MAP[s_lower] in allowed:
+                allowed.add(s_lower)
+            if _ACRONYM_MAP.get(s_lower, "") in allowed:
+                allowed.add(s_lower)
+    # Semantic clusters: if project has ≥1 skill in trigger set, allow all in allow set
+    project_tech_lower = {t.lower() for t in project.get("tech", [])}
+    for trigger_set, allow_set in _SEMANTIC_CLUSTERS:
+        if project_tech_lower & {t.lower() for t in trigger_set}:
+            allowed.update({s.lower() for s in allow_set})
+    return allowed
+
+
+def _is_term_allowed(term: str, allowed: set[str]) -> bool:
+    """Check if a (possibly multi-word) term is allowed.
+
+    Allowed if:
+    1. Term is directly in the allowed set, OR
+    2. Every word is in allowed or maps to an allowed acronym, OR
+    3. Any allowed term substantially overlaps with the term
+       (e.g. 'rest api' is covered by 'django rest framework')."""
+    if term in allowed:
+        return True
+    words = term.split()
+    if len(words) > 1 and all(
+        w in allowed or _ACRONYM_MAP.get(w, "") in allowed
+        for w in words
+    ):
+        return True
+    # Semantic overlap: if any allowed multi-word term contains ≥1 significant
+    # word from the term, consider it covered.  Skip very short words.
+    term_words = {w for w in words if len(w) >= 3}
+    for allowed_term in allowed:
+        allowed_words = set(allowed_term.split())
+        if term_words & allowed_words:
+            return True
+    return False
+
+
+def _validate_letter(letter: str, job) -> dict:
+    """Run deterministic checks on a cover letter. Returns
+    {"issues": [...], "repaired_letter": str}."""
+    issues = []
+    repaired = letter
+
+    # --- a. SALUTATION CHECK ---
+    if not letter.lstrip().startswith("Dear Hiring Manager,"):
+        issues.append("missing_salutation")
+        repaired = "Dear Hiring Manager,\n\n" + repaired.lstrip()
+
+    # --- b. SIGNATURE CHECK ---
+    expected_sig = _build_signature()
+    # Strip any trailing lines that look like the candidate's name/contact
+    # then append the correct signature
+    sig_lower = expected_sig.lower().split("\n")
+    body_lines = repaired.rstrip().split("\n")
+    # Walk backwards from end, strip lines that match any signature line
+    while body_lines:
+        line_stripped = body_lines[-1].strip().lower()
+        if any(line_stripped == s for s in sig_lower if s):
+            body_lines.pop()
+        else:
+            break
+    body = "\n".join(body_lines).rstrip()
+    if body != repaired.rstrip():
+        issues.append("signature_repaired")
+    repaired = body + "\n\n" + expected_sig
+
+    # --- c. FORBIDDEN SKILL CHECK (body only, not signature) ---
+    _, candidate_missing_str = _compute_skill_gap(job)
+    if candidate_missing_str and not candidate_missing_str.startswith("None"):
+        missing_skills = [s.strip() for s in candidate_missing_str.split(",")]
+        sig_start = repaired.lower().rfind(expected_sig.split("\n")[0].lower())
+        body_for_check = repaired[:sig_start] if sig_start > 0 else repaired
+        for skill in missing_skills:
+            if not skill:
+                continue
+            if re.search(rf"\b{re.escape(skill)}\b", body_for_check, re.IGNORECASE):
+                issues.append(f"forbidden_skill:{skill}")
+
+    # --- d. PROJECT ATTRIBUTION CHECK ---
+    projects = PROFILE.get("projects", [])
+
+    all_tech_terms = set()
+    for p in projects:
+        all_tech_terms.update(t.lower() for t in p.get("tech", []))
+    for cat_skills in PROFILE.get("skills", {}).values():
+        all_tech_terms.update(s.lower() for s in cat_skills)
+    for term in list(all_tech_terms):
+        if term in _ACRONYM_MAP:
+            all_tech_terms.add(_ACRONYM_MAP[term])
+
+    # Pre-compute allowed sets (with substrings) per project
+    project_allowed = {}
+    for p in projects:
+        allowed = _project_allowed_terms(p)
+        allowed_substrings = set()
+        for t in allowed:
+            for part in re.split(r'[\s/\-]+', t):
+                if len(part) >= 3:
+                    allowed_substrings.add(part)
+        for term in list(all_tech_terms):
+            if len(term) >= 3 and any(term in t for t in allowed if len(t) > len(term)):
+                allowed_substrings.add(term)
+        project_allowed[p["name"]] = allowed | allowed_substrings
+
+    sentences = re.split(r'(?<=[.!?])\s+', repaired)
+    sent_lower_cache = {}
+    for sent in sentences:
+        sent_lower = sent.lower()
+        sent_lower_cache[sent] = sent_lower
+
+        # Determine which projects this sentence refers to
+        matched_projects = []
+        for p in projects:
+            if p["name"].lower() in sent_lower:
+                matched_projects.append(p)
+
+        # Also check for aggregate references
+        if not matched_projects:
+            if any(ref in sent_lower for ref in _AGGREGATE_REFERENCES):
+                matched_projects = list(projects)
+
+        if not matched_projects:
+            continue
+
+        for term in all_tech_terms:
+            if term not in sent_lower:
+                continue
+            # Term must be allowed for EVERY matched project (intersection check)
+            for p in matched_projects:
+                if not _is_term_allowed(term, project_allowed[p["name"]]):
+                    target = "+".join(p["name"] for p in matched_projects)
+                    issues.append(f"misattribution:{term}->{target}")
+                    break
+
+    # --- e. NUMERIC CLAIM CHECK ---
+    # Build source text from projects + experience
+    source_text = ""
+    for p in projects:
+        source_text += p.get("description", "") + " "
+        source_text += " ".join(p.get("tech", [])) + " "
+    for e in PROFILE.get("experience", []):
+        source_text += e.get("company", "") + " "
+        source_text += e.get("role", "") + " "
+        source_text += e.get("duration", "") + " "
+        source_text += e.get("location", "") + " "
+
+    # Strip signature from letter for number extraction
+    sig_start_idx = repaired.lower().rfind(expected_sig.split("\n")[0].lower())
+    letter_body = repaired[:sig_start_idx].rstrip() if sig_start_idx > 0 else repaired
+
+    # Match: 40%, 35 percent, 500K+, 100ms, 2x, 10k+
+    number_patterns = re.findall(
+        r'\b\d[\d,]*\.?\d*\s*%'
+        r'|\b\d[\d,]*\.?\d*\s*(?:percent|percent)'
+        r'|\b\d[\d,]*\.?\d*\s*[KkMm]\+?'
+        r'|\b\d[\d,]*\.?\d*\s*ms\b'
+        r'|\b\d[\d,]*\.?\d*\s*x\b',
+        letter_body,
+    )
+    for match in number_patterns:
+        normalized = re.sub(r'\s+', '', match.lower())
+        # Check if any form of this number appears in source
+        raw_digits = re.sub(r'[^\d.]', '', match)
+        if raw_digits and raw_digits not in source_text.lower():
+            issues.append(f"unverified_number:{match.strip()}")
+
+    return {"issues": issues, "repaired_letter": repaired}
 
 
 class GenerateCoverLetter(BaseAPIView):
@@ -352,12 +575,72 @@ class GenerateCoverLetter(BaseAPIView):
 
         cover_letter = _clean_cover_letter(cover_letter)
 
-        attr_warnings = _check_project_attribution(cover_letter)
-        if attr_warnings:
+        # --- Validation layer ---
+        validation = _validate_letter(cover_letter, job)
+        all_issues = validation["issues"]
+        cover_letter = validation["repaired_letter"]
+
+        if all_issues:
             logger.warning(
-                "Project attribution warnings for job %d (%s): %s",
-                job.id, job.company, "; ".join(attr_warnings),
+                "Validation issues for job %d (%s, model=%s): %s",
+                job.id, job.company, ai.model_name, "; ".join(all_issues),
             )
+
+        hard_issues = [
+            i for i in all_issues
+            if i.startswith(("forbidden_skill:", "misattribution:", "unverified_number:"))
+        ]
+
+        # --- Retry once if hard issues found ---
+        if hard_issues:
+            retry_prompt = (
+                f"Your previous attempt had these accuracy problems: "
+                f"{'; '.join(hard_issues)}. Fix each one specifically in this attempt. "
+                f"Do not repeat these errors. Remove any forbidden skills, correct "
+                f"project attributions, and remove or replace any unverified numbers."
+            )
+            retry_system = system_prompt + "\n\n" + retry_prompt
+            retry_letter, retry_error = generate_with_llm(
+                system_prompt=retry_system,
+                user_prompt=user_prompt,
+                api_key=api_key,
+                api_base_url=ai.api_base_url,
+                model=ai.model_name,
+                provider=ai.provider,
+            )
+
+            if retry_letter:
+                retry_letter = _clean_cover_letter(retry_letter)
+                retry_validation = _validate_letter(retry_letter, job)
+                retry_hard = [
+                    i for i in retry_validation["issues"]
+                    if i.startswith(("forbidden_skill:", "misattribution:", "unverified_number:"))
+                ]
+
+                if retry_hard:
+                    logger.warning(
+                        "Retry still has hard issues for job %d (%s, model=%s): %s",
+                        job.id, job.company, ai.model_name, "; ".join(retry_hard),
+                    )
+                    return Response(
+                        {
+                            "error": (
+                                "AI generation had accuracy issues that could not be "
+                                f"auto-corrected: {'; '.join(retry_hard)}. Try again, or "
+                                "verify manually before sending."
+                            ),
+                            "draft_with_warnings": retry_validation["repaired_letter"],
+                        },
+                        status=status.HTTP_502_BAD_GATEWAY,
+                    )
+
+                cover_letter = retry_validation["repaired_letter"]
+                if retry_validation["issues"]:
+                    logger.warning(
+                        "Retry auto-fixed remaining issues for job %d (%s, model=%s): %s",
+                        job.id, job.company, ai.model_name,
+                        "; ".join(retry_validation["issues"]),
+                    )
 
         coverage_warnings = _check_requirement_coverage(job, cover_letter)
         if coverage_warnings:
