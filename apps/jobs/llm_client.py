@@ -23,6 +23,15 @@ def _strip_think_tags(text: str) -> str:
     return text.strip()
 
 
+def _strip_output_artifacts(text: str) -> str:
+    text = re.sub(r"^(?:Cover Letter|Here(?:'s| is) (?:your |a )?cover letter|Generated Cover Letter)\s*[:\-]?\s*\n", "", text, flags=re.MULTILINE | re.IGNORECASE)
+    text = re.sub(r"^#{1,3}\s+.*$", "", text, flags=re.MULTILINE)
+    text = re.sub(r"^\*{1,2}(.*?)\*{1,2}$", r"\1", text, flags=re.MULTILINE)
+    if text.startswith('"') and text.endswith('"') and len(text.split("\n")) > 3:
+        text = text[1:-1]
+    return text.strip()
+
+
 def _is_usable(text: str) -> bool:
     if not text:
         return False
@@ -93,12 +102,15 @@ def generate_with_llm(
     model: str,
     *,
     provider: str = "",
-) -> str | None:
+) -> tuple[str | None, str | None]:
     url = f"{api_base_url.rstrip('/')}/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
+    if "openrouter" in api_base_url.lower():
+        headers["HTTP-Referer"] = "https://pathfinder.dev"
+        headers["X-Title"] = "PathFinder"
 
     is_reasoning = _detect_reasoning_model(model)
 
@@ -108,15 +120,18 @@ def generate_with_llm(
     )
 
     if content:
-        letter = _strip_think_tags(content)
+        letter = _strip_output_artifacts(_strip_think_tags(content))
         if _is_usable(letter):
-            return letter
+            return letter, None
         logger.warning(
             "LLM output too short (finish_reason=%s, words=%d): %s",
             finish_reason, len(letter.split()), letter[:200],
         )
     else:
         logger.warning("LLM attempt 1 failed: %s", finish_reason)
+
+    if not content and ("413" in (finish_reason or "") or "429" in (finish_reason or "")):
+        return None, finish_reason
 
     strict_system = system_prompt + (
         "\n\nIMPORTANT: Output the final cover letter DIRECTLY. "
@@ -128,9 +143,9 @@ def generate_with_llm(
     )
 
     if content2:
-        letter2 = _strip_think_tags(content2)
+        letter2 = _strip_output_artifacts(_strip_think_tags(content2))
         if _is_usable(letter2):
-            return letter2
+            return letter2, None
         logger.warning(
             "LLM retry too short (finish_reason=%s, words=%d): %s",
             finish_reason2, len(letter2.split()), letter2[:200],
@@ -138,4 +153,4 @@ def generate_with_llm(
     else:
         logger.warning("LLM attempt 2 failed: %s", finish_reason2)
 
-    return None
+    return None, finish_reason2 or "unknown error"
