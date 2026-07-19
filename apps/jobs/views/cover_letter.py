@@ -128,11 +128,37 @@ You are given two lists: SKILLS THE CANDIDATE HAS THAT MATCH THIS JOB, and SKILL
 - Do not summarize or paraphrase the job's full requirement line (e.g. 'backend services in X, Y, and Z') if it contains any missing skill -- instead reference only the specific matching skills from that same line, worded as your own list, not the job's list.
 - This rule overrides any instinct to sound comprehensive or to mirror the job description's phrasing. Precision about actual skills matters more than matching every word of the JD.
 
+NUMERIC CLAIM RULE -- MANDATORY, NON-NEGOTIABLE:
+- Every number, percentage, statistic, or measurable claim in your output (e.g. '40%', 'sub-100ms', '500K+ LOC', '99%+ completion', '35 percent') must appear VERBATIM in the PROJECTS or EXPERIENCE data given to you below, attached to the exact same achievement it describes there.
+- You are FORBIDDEN from moving a number from one achievement to a different achievement, combining two numbers, rounding a number, or inventing a new number that doesn't appear in the source data at all.
+- If you want to mention an achievement that has a number attached in the source data, you must keep the number attached to the SAME technology/action it was originally paired with. Do not detach '40 percent' from 'reduced initial page load' and reattach it to 'deployment time' or any other claim.
+- If no specific number supports the point you want to make, make the point WITHOUT a number rather than inventing one. A qualitative claim with no number is always safer and more honest than a fabricated statistic.
+- Before finalizing, check every number in your draft against the source data: can you point to the exact sentence in PROJECTS/EXPERIENCE it came from, attached to the same claim? If not, delete it or rewrite without it.
+
+TONE -- WRITE LIKE A HUMAN, NOT AN AI:
+- Write the way a sharp engineer would actually write to a hiring manager they respect -- direct, specific, a little informal in rhythm, not corporate-polished.
+- Vary sentence length deliberately. Follow a longer sentence with a short one. Avoid three sentences in a row with the same length and structure -- that rhythm is a known AI tell.
+- Do not use inflated adjectives that add no information: 'passionate', 'thrilled', 'excited to leverage', 'robust', 'seamless', 'cutting-edge', 'dynamic', 'comprehensive'. If a sentence still makes sense with the adjective deleted, delete it.
+- Do not use symmetric three-part lists for their own rhythm ('design, build, and ship' / 'fast, reliable, and scalable') unless all three words are doing distinct, necessary work -- these are a strong AI-writing tell when overused.
+- Avoid corporate transition phrases: 'Furthermore', 'Moreover', 'In addition to this', 'It is worth noting that'. Just state the next point directly.
+- Every sentence should contain either a specific technical detail, a real outcome, or a direct connection to something the job actually asks for. If a sentence could be deleted without losing any specific information, delete it.
+- One instance of genuine personality or specific curiosity about the company/problem is good (e.g. naming a real detail from the JD that's interesting, not just matching keywords). Flattery without specifics ('I'm impressed by your innovative culture') is banned.
+
 PROJECT ATTRIBUTION RULE:
 - Each project can only be described using the technologies and responsibilities listed for that specific project in the PROJECTS section of the prompt.
 - Do not attribute a skill, technology, or responsibility to a project unless it is explicitly listed under that project's own entry.
 - If a skill is only mentioned in the candidate's general skills list or under a different project or experience, either mention it generally without tying it to the wrong project, or attribute it to the correct project or role it actually belongs to.
 - Never write "in Project X, I used Skill Y" if Skill Y does not appear in Project X's Tech line.
+
+LOCATION RULE:
+- Only make a claim about relocation, remote availability, or being 'based in' a location if the candidate's actual location and relocation preference are given to you explicitly below.
+- Never state a firm commitment like 'I am ready to relocate to X' unless explicitly told the candidate is open to relocation. If relocation openness is not specified, either use soft, non-committal phrasing (e.g. 'happy to discuss location/relocation details') or omit location commentary entirely -- do not invent a decision on the candidate's behalf.
+- Never name a specific city as a place the candidate is 'ready to relocate to' unless that is the job's actual stated location, given to you below, AND the candidate's relocation preference explicitly allows it.
+
+AVAILABILITY RULE:
+- Only make a claim about notice period, start date, or ability to join immediately if the candidate's actual availability is given to you explicitly below.
+- Never state 'I am comfortable joining immediately' or 'I can start right away' or any similar claim unless the candidate's provided availability explicitly supports it.
+- If availability is unspecified or indicates a notice period, either omit availability commentary entirely, or phrase it accurately and non-committally (e.g. 'happy to discuss timeline and availability further'). Do not round a notice period down to 'immediate' or invent urgency the candidate hasn't stated.
 
 SIGNATURE (append exactly as-is at the end of the letter):
 {signature}"""
@@ -149,6 +175,8 @@ def _build_user_prompt(job) -> str:
     if experience:
         e = experience[0]
         exp_text = f"{e.get('role', role)} at {e.get('company', 'Unknown')}, {e.get('location', location)}"
+        if e.get("duration"):
+            exp_text += f" ({e['duration']})"
 
     desc = (job.description or "")[:3000]
 
@@ -160,6 +188,16 @@ def _build_user_prompt(job) -> str:
             f"- {p['name']}: {p['description']} "
             f"(Tech: {', '.join(p['tech'][:8])})\n"
         )
+
+    experience_text = ""
+    for e in experience:
+        experience_text += (
+            f"- {e.get('role', role)} at {e.get('company', 'Unknown')}, "
+            f"{e.get('location', location)}"
+        )
+        if e.get("duration"):
+            experience_text += f" ({e['duration']})"
+        experience_text += "\n"
 
     return f"""Write a cover letter for this specific job application.
 
@@ -175,12 +213,17 @@ CANDIDATE:
 Name: {name}
 Role: {role}
 Experience: {experience_years} year(s) -- {exp_text}
+CANDIDATE LOCATION: {PROFILE.get('location', 'Not specified')}
+OPEN TO RELOCATION: {PROFILE.get('open_to_relocation', 'Not specified')}
+CANDIDATE AVAILABILITY: {PROFILE.get('availability', 'Not specified')}
 
 SKILLS THE CANDIDATE HAS THAT MATCH THIS JOB: {candidate_has}
 SKILLS THIS JOB REQUIRES THAT THE CANDIDATE DOES NOT HAVE: {candidate_missing}
 
 PROJECTS:
 {projects_text}
+EXPERIENCE:
+{experience_text}
 INSTRUCTIONS:
 - You may ONLY write about skills from the has-list above. The missing-skills list is FORBIDDEN in your output.
 - Identify 1-2 specific details from the job description above and reference at least one directly in your opening.
@@ -188,6 +231,32 @@ INSTRUCTIONS:
 - Keep it under 180 words in the body (excluding signature).
 - Use the signature block provided in the system prompt exactly as-is.
 - Do NOT add any text before or after the cover letter."""
+
+
+def _check_project_attribution(letter: str) -> list[str]:
+    """Scan the letter for project-name mentions and flag if a skill appears in the
+    same sentence/vicinity that isn't in that project's actual tech list per PROFILE.
+    Returns a list of warning strings (does not modify the letter)."""
+    warnings = []
+    projects = PROFILE.get("projects", [])
+    sentences = re.split(r'(?<=[.!?])\s+', letter)
+    for p in projects:
+        proj_name = p["name"]
+        proj_tech_lower = {t.lower() for t in p.get("tech", [])}
+        for sent in sentences:
+            if proj_name.lower() in sent.lower():
+                all_known_terms = set()
+                for other_p in projects:
+                    all_known_terms.update(t.lower() for t in other_p.get("tech", []))
+                for cat_skills in PROFILE.get("skills", {}).values():
+                    all_known_terms.update(s.lower() for s in cat_skills)
+                for term in all_known_terms:
+                    if term in sent.lower() and term not in proj_tech_lower:
+                        warnings.append(
+                            f"Possible misattribution: '{term}' mentioned near "
+                            f"'{proj_name}' but not in {proj_name}'s tech list"
+                        )
+    return warnings
 
 
 class GenerateCoverLetter(BaseAPIView):
@@ -234,6 +303,13 @@ class GenerateCoverLetter(BaseAPIView):
             return self.error(msg, status.HTTP_502_BAD_GATEWAY)
 
         cover_letter = _clean_cover_letter(cover_letter)
+
+        attr_warnings = _check_project_attribution(cover_letter)
+        if attr_warnings:
+            logger.warning(
+                "Project attribution warnings for job %d (%s): %s",
+                job.id, job.company, "; ".join(attr_warnings),
+            )
 
         app, _ = Application.objects.get_or_create(job=job)
         app.cover_letter_text = cover_letter
