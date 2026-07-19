@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Chart, registerables } from "chart.js";
 import { api } from "../api/client";
+import { useFetcher } from "../FetcherProgress";
+import { useTitle } from "../hooks/useTitle";
 
 Chart.register(...registerables);
 
@@ -44,10 +46,11 @@ function StatusChip({ status }: { status: string }) {
 }
 
 export default function Overview() {
+  useTitle("Overview", "Your job search at a glance — jobs, matches, and applications dashboard.");
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [fetcherRunning, setFetcherRunning] = useState(false);
   const [fetcherStatus, setFetcherStatus] = useState("");
+  const { progress, running: fetcherRunning, startFetcher } = useFetcher();
   const timelineRef = useRef<HTMLCanvasElement>(null);
   const skillsRef = useRef<HTMLCanvasElement>(null);
   const timelineChartRef = useRef<Chart | null>(null);
@@ -165,20 +168,8 @@ export default function Overview() {
   }, [data, loading]);
 
   function handleRunFetcher() {
-    setFetcherRunning(true);
     setFetcherStatus("");
-    api.fetcher.run()
-      .then(() => {
-        setFetcherStatus("Fetcher started — refresh in a few seconds to see results");
-        setTimeout(() => {
-          setFetcherStatus("");
-          setFetcherRunning(false);
-        }, 5000);
-      })
-      .catch(() => {
-        setFetcherStatus("Error running fetcher");
-        setFetcherRunning(false);
-      });
+    startFetcher();
   }
 
   if (loading) {
