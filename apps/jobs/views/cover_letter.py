@@ -160,6 +160,11 @@ AVAILABILITY RULE:
 - Never state 'I am comfortable joining immediately' or 'I can start right away' or any similar claim unless the candidate's provided availability explicitly supports it.
 - If availability is unspecified or indicates a notice period, either omit availability commentary entirely, or phrase it accurately and non-committally (e.g. 'happy to discuss timeline and availability further'). Do not round a notice period down to 'immediate' or invent urgency the candidate hasn't stated.
 
+SENIORITY AWARENESS RULE:
+- If the job title includes a seniority marker (Senior, Staff, Lead, Principal, etc.) and the candidate's total experience (given below) is under 3 years, do not write the letter as if seniority is a non-issue.
+- In this case, spend one sentence making an honest, specific case for depth over tenure -- e.g. citing the scope or complexity of a real project (architecture decisions, scale numbers, ownership of a full system) rather than years. Do not apologize for experience level or draw attention to it as a weakness. Do not ignore it either -- make the strongest honest case that complexity of work compensates for fewer years, using only real details from the candidate's projects/experience data.
+- If the candidate's experience level roughly matches or exceeds what the title implies, this rule does not apply -- write normally.
+
 SIGNATURE (append exactly as-is at the end of the letter):
 {signature}"""
 
@@ -213,6 +218,7 @@ CANDIDATE:
 Name: {name}
 Role: {role}
 Experience: {experience_years} year(s) -- {exp_text}
+CANDIDATE TOTAL EXPERIENCE: {experience_years} year(s)
 CANDIDATE LOCATION: {PROFILE.get('location', 'Not specified')}
 OPEN TO RELOCATION: {PROFILE.get('open_to_relocation', 'Not specified')}
 CANDIDATE AVAILABILITY: {PROFILE.get('availability', 'Not specified')}
@@ -256,6 +262,48 @@ def _check_project_attribution(letter: str) -> list[str]:
                             f"Possible misattribution: '{term}' mentioned near "
                             f"'{proj_name}' but not in {proj_name}'s tech list"
                         )
+    return warnings
+
+
+_COVERAGE_KEYWORDS = {
+    "test": ["test", "testing", "unit test", "integration test", "end-to-end", "e2e"],
+    "ci/cd": ["ci/cd", "ci cd", "continuous integration", "continuous deployment", "pipeline"],
+    "security": ["security", "compliance", "owasp", "vulnerability", "authentication"],
+    "accessibility": ["accessibility", "a11y", "wcag", "screen reader"],
+    "monitoring": ["monitoring", "observability", "logging", "alerting", "apm"],
+    "documentation": ["documentation", "docs", "technical writing"],
+    "agile": ["agile", "scrum", "sprint", "kanban"],
+}
+
+
+def _check_requirement_coverage(job, letter: str) -> list[str]:
+    """Check if core JD requirements are addressed in the letter.
+    Returns a list of warning strings (does not modify the letter)."""
+    warnings = []
+    desc = (job.description or "").lower()
+    letter_lower = letter.lower()
+
+    for category, keywords in _COVERAGE_KEYWORDS.items():
+        jd_requires = False
+        for kw in keywords:
+            if re.search(rf"\b{re.escape(kw)}\b", desc):
+                jd_requires = True
+                break
+
+        if not jd_requires:
+            continue
+
+        letter_addresses = False
+        for kw in keywords:
+            if re.search(rf"\b{re.escape(kw)}\b", letter_lower):
+                letter_addresses = True
+                break
+
+        if not letter_addresses:
+            warnings.append(
+                f"JD requires '{category}' but letter does not address it"
+            )
+
     return warnings
 
 
@@ -309,6 +357,13 @@ class GenerateCoverLetter(BaseAPIView):
             logger.warning(
                 "Project attribution warnings for job %d (%s): %s",
                 job.id, job.company, "; ".join(attr_warnings),
+            )
+
+        coverage_warnings = _check_requirement_coverage(job, cover_letter)
+        if coverage_warnings:
+            logger.warning(
+                "Requirement coverage warnings for job %d (%s): %s",
+                job.id, job.company, "; ".join(coverage_warnings),
             )
 
         app, _ = Application.objects.get_or_create(job=job)
