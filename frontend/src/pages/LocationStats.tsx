@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
+import { useTitle } from "../hooks/useTitle";
 
 interface LocationRow {
   location: string;
@@ -8,6 +9,7 @@ interface LocationRow {
 }
 
 export default function LocationStats() {
+  useTitle("Location Stats", "Job distribution across locations — Kerala, India, and remote.");
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);

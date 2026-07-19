@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import Markdown from "react-markdown";
 import { api } from "../api/client";
+import { useTitle } from "../hooks/useTitle";
 import type { JobDetail as JobDetailType } from "../types";
 
 function ScoreBadge({ score, size = "md" }: { score: number; size?: "sm" | "md" }) {
@@ -41,8 +42,8 @@ function InfoRow({ label, children, accent }: { label: string; children: React.R
 
 export default function JobDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [job, setJob] = useState<JobDetailType | null>(null);
+  useTitle(job?.title ?? "Job Details", job ? `${job.company} — ${job.location}` : undefined);
   const [loading, setLoading] = useState(true);
   const [showDesc, setShowDesc] = useState(false);
   const [copied, setCopied] = useState(false);

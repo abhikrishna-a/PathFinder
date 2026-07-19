@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
+import { useTitle } from "../hooks/useTitle";
 
 interface CompanyRow {
   company: string;
@@ -10,6 +11,7 @@ interface CompanyRow {
 }
 
 export default function CompanyStats() {
+  useTitle("Company Stats", "Top hiring companies ranked by job count and average match score.");
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [loading, setLoading] = useState(true);
 
