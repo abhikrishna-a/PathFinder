@@ -8,6 +8,7 @@ import httpx
 
 from config.queries import TECHNOPARK_QUERIES
 from common.utils import make_uid, html_to_markdown
+from apps.jobs.services import _extract_salary_from_text
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,8 @@ def fetch_technopark_jobs(max_per_query: int = 25) -> list[dict]:
                     apply_url = f"https://technopark.in/job-details/{job_id}?job={title.replace(' ', '+')}"
                     full_text = f"{title} {company} {description} {location}"
 
+                    salary, salary_display = _extract_salary_from_text(f"{title} {description}")
+
                     job = {
                         "uid": uid,
                         "title": title,
@@ -112,8 +115,8 @@ def fetch_technopark_jobs(max_per_query: int = 25) -> list[dict]:
                         "apply_url": apply_url,
                         "search_query": f"technopark: {keywords}",
                         "job_url": apply_url,
-                        "salary": 0,
-                        "salary_display": "",
+                        "salary": salary,
+                        "salary_display": salary_display,
                         "full_text": full_text,
                     }
 

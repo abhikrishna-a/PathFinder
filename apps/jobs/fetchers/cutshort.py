@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 
 from config.queries import CUTSHORT_SEARCH_URLS
 from common.utils import make_uid, html_to_markdown
+from apps.jobs.services import _extract_salary_from_text
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,10 @@ def _parse_job(job: dict) -> dict | None:
     description_html = job.get("sanitizedComment", "")
     description = html_to_markdown(description_html)
 
+    salary = salary_data.get("max", 0) if salary_data else 0
+    if not salary:
+        salary, salary_display = _extract_salary_from_text(f"{title} {description}")
+
     skills = job.get("allSkills", [])
 
     apply_url = job.get("publicUrl", "")
@@ -72,7 +77,7 @@ def _parse_job(job: dict) -> dict | None:
         "description": description,
         "apply_url": apply_url,
         "apply_email": "",
-        "salary": salary_data.get("max", 0) if salary_data else 0,
+        "salary": salary,
         "salary_display": salary_display,
         "experience": f"{min_exp}-{max_exp} years" if max_exp else "",
         "min_experience": min_exp,

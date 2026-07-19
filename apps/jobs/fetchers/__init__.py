@@ -8,6 +8,7 @@ from config.queries import SEARCH_QUERIES
 from common.utils import make_uid
 from apps.jobs.fetchers.technopark import fetch_technopark_jobs
 from apps.jobs.fetchers.cutshort import fetch_cutshort_jobs
+from apps.jobs.services import _extract_salary_from_text
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,8 @@ def _parse_rss_xml(xml_text: str, query: dict) -> list[dict]:
         uid = make_uid(title, company)
         full_text = f"{title} {company} {description} {location} {source}"
 
+        salary, salary_display = _extract_salary_from_text(f"{title} {description}")
+
         jobs.append({
             "uid": uid,
             "title": title,
@@ -83,8 +86,8 @@ def _parse_rss_xml(xml_text: str, query: dict) -> list[dict]:
             "apply_url": apply_url,
             "search_query": f"{query['keywords']} in {query['location']}",
             "job_url": apply_url,
-            "salary": 0,
-            "salary_display": "",
+            "salary": salary,
+            "salary_display": salary_display,
             "full_text": full_text,
         })
 
