@@ -107,6 +107,13 @@ EMAIL_PASS = os.getenv("EMAIL_PASS", "")
 EMAIL_SMTP_HOST = os.getenv("EMAIL_SMTP_HOST", "smtp.gmail.com")
 EMAIL_SMTP_PORT = int(os.getenv("EMAIL_SMTP_PORT", "465"))
 
+# ── AI (LLM cover letter generation) ──────────────────────────────
+
+AI_PROVIDER = os.getenv("AI_PROVIDER", "openai")
+AI_API_BASE_URL = os.getenv("AI_API_BASE_URL", "https://api.openai.com/v1")
+AI_API_KEY = os.getenv("AI_API_KEY", "")
+AI_MODEL = os.getenv("AI_MODEL", "gpt-4o-mini")
+
 # ── Resume ────────────────────────────────────────────────────────────
 
 RESUME_PATH = BASE_DIR / os.getenv("RESUME_PATH", "resume/Your_Resume.pdf")

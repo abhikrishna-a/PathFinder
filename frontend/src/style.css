@@ -7044,3 +7044,96 @@ textarea.form-control {
 
     .aq-email-badge { align-self: flex-start; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Profile — AI Settings Section
+   ═══════════════════════════════════════════════════════════════════ */
+
+.pf-ai {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.pf-ai-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--green-bg);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--green);
+}
+
+.pf-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+}
+
+.pf-ai-hint {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.pf-ai-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.pf-ai-link:hover { text-decoration: underline; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Job Detail — Cover Letter Generate Button
+   ═══════════════════════════════════════════════════════════════════ */
+
+.jd-cover-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.jd-btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.jd-cover-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 20px;
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+}
+
+.jd-cover-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 0;
+}
+
+.spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}

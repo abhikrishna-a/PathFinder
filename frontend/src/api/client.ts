@@ -1,4 +1,4 @@
-import type { PaginatedResponse, Job, JobDetail, Application, SecurityStatus, ResumeStatus, ApplyProgress } from "../types";
+import type { PaginatedResponse, Job, JobDetail, Application, SecurityStatus, ResumeStatus, ApplyProgress, AIConfig } from "../types";
 
 const BASE = "/api/v1";
 
@@ -20,6 +20,12 @@ export const api = {
     apply(id: number): Promise<Record<string, unknown>> {
       return fetch(`${BASE}/jobs/${id}/apply/`, { method: "POST" }).then((r) => {
         if (!r.ok) throw new Error(`API error: ${r.status}`);
+        return r.json();
+      });
+    },
+    generateCoverLetter(id: number): Promise<{ cover_letter: string }> {
+      return fetch(`${BASE}/jobs/${id}/generate-cover-letter/`, { method: "POST" }).then((r) => {
+        if (!r.ok) return r.json().then((d) => { throw new Error(d.detail || d.error || `API error: ${r.status}`); });
         return r.json();
       });
     },
@@ -112,6 +118,25 @@ export const api = {
     },
     deleteSecurity(): Promise<Record<string, unknown>> {
       return fetch(`${BASE}/profile/security/`, { method: "DELETE" }).then((r) => {
+        if (!r.ok) throw new Error(`API error: ${r.status}`);
+        return r.json();
+      });
+    },
+    getAI(): Promise<AIConfig> {
+      return get("/profile/ai/");
+    },
+    saveAI(data: { provider: string; api_base_url: string; model_name: string; api_key: string }): Promise<Record<string, unknown>> {
+      return fetch(`${BASE}/profile/ai/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then((r) => {
+        if (!r.ok) return r.json().then((d) => { throw new Error(d.detail || d.error || `API error: ${r.status}`); });
+        return r.json();
+      });
+    },
+    deleteAI(): Promise<Record<string, unknown>> {
+      return fetch(`${BASE}/profile/ai/`, { method: "DELETE" }).then((r) => {
         if (!r.ok) throw new Error(`API error: ${r.status}`);
         return r.json();
       });
