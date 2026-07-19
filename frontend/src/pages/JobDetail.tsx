@@ -4,6 +4,41 @@ import Markdown from "react-markdown";
 import { api } from "../api/client";
 import type { JobDetail as JobDetailType } from "../types";
 
+function ScoreBadge({ score, size = "md" }: { score: number; size?: "sm" | "md" }) {
+  const cls = score >= 50 ? "high" : score >= 30 ? "med" : "low";
+  return <span className={"jd-score jd-score-" + cls + (size === "sm" ? " sm" : "")}>{score}%</span>;
+}
+
+function StatusChip({ status }: { status: string }) {
+  return <span className={"jd-chip jd-chip-" + status}>{status.replace("_", " ")}</span>;
+}
+
+function TabButton({ active, onClick, children, count }: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  count?: number;
+  countVariant?: "default" | "warn";
+}) {
+  return (
+    <button className={"jd-tab" + (active ? " active" : "")} onClick={onClick}>
+      {children}
+      {count != null && count > 0 && (
+        <span className="jd-tab-count">{count}</span>
+      )}
+    </button>
+  );
+}
+
+function InfoRow({ label, children, accent }: { label: string; children: React.ReactNode; accent?: boolean }) {
+  return (
+    <div className="jd-info-row">
+      <span className="jd-info-label">{label}</span>
+      <span className={"jd-info-value" + (accent ? " accent" : "")}>{children}</span>
+    </div>
+  );
+}
+
 export default function JobDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -11,7 +46,7 @@ export default function JobDetail() {
   const [loading, setLoading] = useState(true);
   const [showDesc, setShowDesc] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [activeSkillTab, setActiveSkillTab] = useState<"matched" | "gaps" | "analysis">("matched");
+  const [activeTab, setActiveTab] = useState<"matched" | "gaps" | "analysis">("matched");
 
   useEffect(() => {
     if (!id) return;
@@ -29,318 +64,401 @@ export default function JobDetail() {
     });
   }
 
-  if (loading) return <div className="empty-guidance"><h3>Loading...</h3></div>;
-  if (!job) return <div className="empty-guidance"><h3>Job not found</h3></div>;
+  if (loading) {
+    return (
+      <>
+        <div className="page-header">
+          <div>
+            <Link to="/jobs" className="jd-back">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+              Jobs
+            </Link>
+            <div className="jd-skeleton-title" />
+            <div className="jd-skeleton-meta" />
+          </div>
+        </div>
+        <div className="jd-loading-grid">
+          <div className="jd-card skeleton"><div className="jd-skeleton-block" /></div>
+          <div className="jd-card skeleton"><div className="jd-skeleton-block" /></div>
+        </div>
+      </>
+    );
+  }
+
+  if (!job) {
+    return (
+      <>
+        <div className="page-header">
+          <Link to="/jobs" className="jd-back">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            Jobs
+          </Link>
+        </div>
+        <div className="jd-empty">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <h3>Job not found</h3>
+          <p>This job may have been removed or the link is invalid.</p>
+        </div>
+      </>
+    );
+  }
 
   const app = job.application;
   const maxWeight = job.skill_score_breakdown
     ? Math.max(...Object.values(job.skill_score_breakdown), 1)
     : 1;
 
+  const descPreview = job.description?.slice(0, 400) || "";
+  const descTruncated = (job.description?.length || 0) > 400;
+
+  function getDescText(): string {
+    if (showDesc || !descTruncated) return job.description || "";
+    let text = descPreview;
+    const lastNewline = text.lastIndexOf("\n");
+    if (lastNewline > 200) text = text.slice(0, lastNewline);
+    if (text.endsWith("**") || text.endsWith("*")) {
+      const prevNewline = text.lastIndexOf("\n", text.length - 2);
+      if (prevNewline > 200) text = text.slice(0, prevNewline);
+    }
+    return text + "\n\n…";
+  }
+
   return (
     <>
-      <div className="detail-header">
-        <Link to="/jobs" className="back-link">← Back to Jobs</Link>
-        <h2>{job.title}</h2>
-        <div className="detail-meta">
-          <span className={"score-badge " + (job.match_score >= 50 ? "high" : job.match_score >= 30 ? "med" : "low")}>
-            {job.match_score}%
-          </span>
-          <span>{job.company}</span> ·
-          <span>{job.location}</span> ·
-          <span>{job.source}</span> ·
-          {job.salary_display && <><span className="job-salary">{job.salary_display}</span> ·</>}
-          <span className={"status-pill " + job.status}>{job.status}</span>
+      {/* Header */}
+      <div className="page-header">
+        <div>
+          <Link to="/jobs" className="jd-back">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            Jobs
+          </Link>
+          <h2 className="jd-title">{job.title}</h2>
+          <div className="jd-meta">
+            <ScoreBadge score={job.match_score} />
+            <span className="jd-meta-text">{job.company}</span>
+            <span className="jd-dot">·</span>
+            <span className="jd-meta-text">{job.location}</span>
+            <span className="jd-dot">·</span>
+            <span className="jd-meta-text">{job.source}</span>
+            {job.salary_display && (
+              <>
+                <span className="jd-dot">·</span>
+                <span className="jd-meta-salary">{job.salary_display}</span>
+              </>
+            )}
+            <span className="jd-dot">·</span>
+            <StatusChip status={job.status} />
+          </div>
+        </div>
+        <div className="jd-actions-top">
+          {job.apply_url && (
+            <a href={job.apply_url} target="_blank" rel="noopener noreferrer" className="jd-btn jd-btn-primary">
+              Apply Now
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M7 17L17 7M17 7H7M17 7v10" />
+              </svg>
+            </a>
+          )}
+          {job.job_url && (
+            <a href={job.job_url} target="_blank" rel="noopener noreferrer" className="jd-btn jd-btn-secondary">
+              Original
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </a>
+          )}
         </div>
       </div>
 
       {job.filter_reason && (
-        <div className="filter-reason-banner">
+        <div className="jd-alert jd-alert-warn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" />
+          </svg>
           Filtered: {job.filter_reason}
         </div>
       )}
 
-      <div className="two-col">
-        {/* ── Left: Job Details ────────────────────────────── */}
-        <div className="panel">
-          <h3>Job Details</h3>
-
-          <div className="detail-grid">
-            <div className="detail-section">
-              <label>Posted</label>
-              <div>{job.posted_date || "N/A"}</div>
-            </div>
-            <div className="detail-section">
-              <label>Fetched</label>
-              <div>{job.fetched_date ? new Date(job.fetched_date).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "N/A"}</div>
-            </div>
+      {/* Two-column layout */}
+      <div className="jd-grid">
+        {/* Left: Job Details */}
+        <div className="jd-card">
+          <div className="jd-card-header">
+            <h3 className="jd-card-title">Details</h3>
+          </div>
+          <div className="jd-info">
+            <InfoRow label="Posted">{job.posted_date || "N/A"}</InfoRow>
+            <InfoRow label="Fetched">
+              {job.fetched_date ? new Date(job.fetched_date).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" }) : "N/A"}
+            </InfoRow>
             {job.salary_display && (
-              <div className="detail-section">
-                <label>Salary</label>
-                <div>
-                  <span className="job-salary">{job.salary_display}</span>
-                  {job.salary ? <span style={{ marginLeft: "8px", fontSize: "13px", color: "var(--muted)" }}>₹{job.salary.toLocaleString("en-IN")}/yr</span> : null}
-                </div>
-              </div>
+              <InfoRow label="Salary" accent>
+                {job.salary_display}
+                {job.salary && <span className="jd-salary-raw">₹{job.salary.toLocaleString("en-IN")}/yr</span>}
+              </InfoRow>
             )}
             {job.search_query && (
-              <div className="detail-section">
-                <label>Search Query</label>
-                <div className="search-query-tag">{job.search_query}</div>
-              </div>
+              <InfoRow label="Query">
+                <span className="jd-query">{job.search_query}</span>
+              </InfoRow>
             )}
             {job.apply_email && (
-              <div className="detail-section">
-                <label>Apply Email</label>
-                <div>{job.apply_email}</div>
-              </div>
+              <InfoRow label="Email">{job.apply_email}</InfoRow>
             )}
             {job.apply_url && (
-              <div className="detail-section full-width">
-                <label>Apply URL</label>
-                <div><a href={job.apply_url} target="_blank" rel="noopener noreferrer" className="detail-link">{job.apply_url.length > 60 ? job.apply_url.slice(0, 60) + "…" : job.apply_url}</a></div>
-              </div>
+              <InfoRow label="Apply URL">
+                <a href={job.apply_url} target="_blank" rel="noopener noreferrer" className="jd-link">
+                  {job.apply_url.length > 50 ? job.apply_url.slice(0, 50) + "…" : job.apply_url}
+                </a>
+              </InfoRow>
             )}
           </div>
 
-          {/* Description — collapsible */}
+          {/* Description */}
           {job.description && (
-            <div className="detail-section" style={{ marginTop: "16px" }}>
-              <label>Description</label>
-              <div className={"job-description-box" + (showDesc ? " expanded" : "")}>
-                <div className="job-description-content">
-                  <Markdown>{showDesc ? job.description : job.description.slice(0, 300) + (job.description.length > 300 ? "…" : "")}</Markdown>
-                </div>
-                {job.description.length > 300 && (
-                  <button type="button" className="desc-toggle" onClick={() => setShowDesc(!showDesc)}>
-                    {showDesc ? "Show less" : "Show full description"}
-                  </button>
-                )}
+            <div className="jd-desc-section">
+              <div className="jd-card-header">
+                <h3 className="jd-card-title">Description</h3>
               </div>
+              <div className="jd-desc">
+                <Markdown>{getDescText()}</Markdown>
+              </div>
+              {descTruncated && (
+                <button className="jd-desc-toggle" onClick={() => setShowDesc(!showDesc)}>
+                  {showDesc ? "Show less" : "Show full description"}
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: showDesc ? "rotate(180deg)" : "none" }}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+              )}
             </div>
           )}
         </div>
 
-        {/* ── Right: Skills, Gaps, Analysis ────────────────── */}
-        <div className="panel">
-          {/* Tab bar */}
-          <div className="skill-tabs">
-            <button className={"skill-tab" + (activeSkillTab === "matched" ? " active" : "")} onClick={() => setActiveSkillTab("matched")}>
-              Matched Skills
-              {job.matched_skills?.length > 0 && <span className="skill-tab-count">{job.matched_skills.length}</span>}
-            </button>
-            <button className={"skill-tab" + (activeSkillTab === "gaps" ? " active" : "")} onClick={() => setActiveSkillTab("gaps")}>
-              Skill Gaps
-              {job.skill_gaps?.length > 0 && <span className="skill-tab-count gap">{job.skill_gaps.length}</span>}
-            </button>
-            <button className={"skill-tab" + (activeSkillTab === "analysis" ? " active" : "")} onClick={() => setActiveSkillTab("analysis")}>
+        {/* Right: Skills / Gaps / Analysis */}
+        <div className="jd-card">
+          <div className="jd-tabs">
+            <TabButton active={activeTab === "matched"} onClick={() => setActiveTab("matched")} count={job.matched_skills?.length}>
+              Matched
+            </TabButton>
+            <TabButton active={activeTab === "gaps"} onClick={() => setActiveTab("gaps")} count={job.skill_gaps?.length}>
+              Gaps
+            </TabButton>
+            <TabButton active={activeTab === "analysis"} onClick={() => setActiveTab("analysis")}>
               Analysis
-            </button>
+            </TabButton>
           </div>
 
-          {/* ── Matched Skills Tab ──────────────────────────── */}
-          {activeSkillTab === "matched" && (
-            <div className="skill-tab-content">
-              {job.matched_skills?.length > 0 ? (
-                <div className="skill-bars">
-                  {job.matched_skills.map((skill) => {
-                    const weight = job.skill_score_breakdown?.[skill] ?? 0;
-                    const pct = maxWeight > 0 ? (weight / maxWeight) * 100 : 0;
-                    return (
-                      <div key={skill} className="skill-bar-row">
-                        <div className="skill-bar-info">
-                          <span className="skill-bar-name">{skill}</span>
-                          {weight > 0 && <span className="skill-bar-pts">+{weight} pts</span>}
+          <div className="jd-tab-content">
+            {/* Matched Skills */}
+            {activeTab === "matched" && (
+              <>
+                {job.matched_skills?.length > 0 ? (
+                  <div className="jd-skills">
+                    {job.matched_skills.map((skill) => {
+                      const weight = job.skill_score_breakdown?.[skill] ?? 0;
+                      const pct = maxWeight > 0 ? (weight / maxWeight) * 100 : 0;
+                      return (
+                        <div key={skill} className="jd-skill-row">
+                          <div className="jd-skill-info">
+                            <span className="jd-skill-name">{skill}</span>
+                            {weight > 0 && <span className="jd-skill-pts">+{weight}</span>}
+                          </div>
+                          <div className="jd-skill-bar">
+                            <div className="jd-skill-bar-fill" style={{ width: `${pct}%` }} />
+                          </div>
                         </div>
-                        <div className="skill-bar-track">
-                          <div className="skill-bar-fill" style={{ width: `${pct}%` }} />
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="jd-tab-empty">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8" />
+                      <path d="m21 21-4.35-4.35" />
+                    </svg>
+                    <p>No skills matched.</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Skill Gaps */}
+            {activeTab === "gaps" && (
+              <>
+                {job.skill_gaps?.length > 0 ? (
+                  <div className="jd-gaps">
+                    {job.skill_gaps.map((gap, i) => (
+                      <div key={gap} className="jd-gap">
+                        <span className="jd-gap-num">{i + 1}</span>
+                        <span className="jd-gap-name">{gap}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="jd-tab-empty jd-tab-empty-good">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                      <polyline points="22 4 12 14.01 9 11.01" />
+                    </svg>
+                    <p>No skill gaps — you match all required skills.</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Analysis */}
+            {activeTab === "analysis" && (
+              <>
+                {job.match_explanation ? (
+                  <div className="jd-analysis">
+                    <p className="jd-analysis-text">{job.match_explanation}</p>
+                    {job.skill_score_breakdown && Object.keys(job.skill_score_breakdown).length > 0 && (
+                      <div className="jd-breakdown">
+                        <h4 className="jd-breakdown-title">Score Breakdown</h4>
+                        <div className="jd-breakdown-list">
+                          {Object.entries(job.skill_score_breakdown)
+                            .sort(([, a], [, b]) => b - a)
+                            .map(([skill, pts]) => (
+                              <div key={skill} className="jd-breakdown-item">
+                                <span className="jd-breakdown-skill">{skill}</span>
+                                <span className="jd-breakdown-pts">+{pts}</span>
+                              </div>
+                            ))}
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p style={{ color: "var(--muted)", fontSize: "14px", padding: "20px 0" }}>No skills matched.</p>
-              )}
-            </div>
-          )}
-
-          {/* ── Skill Gaps Tab ──────────────────────────────── */}
-          {activeSkillTab === "gaps" && (
-            <div className="skill-tab-content">
-              {job.skill_gaps?.length > 0 ? (
-                <div className="gaps-list">
-                  {job.skill_gaps.map((gap, i) => (
-                    <div key={gap} className="gap-row">
-                      <span className="gap-number">{i + 1}</span>
-                      <span className="gap-name">{gap}</span>
-                      <span className="gap-label">missing</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="gaps-empty">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                    <polyline points="22 4 12 14.01 9 11.01" />
-                  </svg>
-                  <p>No skill gaps — you match all required skills!</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── Analysis Tab ────────────────────────────────── */}
-          {activeSkillTab === "analysis" && (
-            <div className="skill-tab-content">
-              {job.match_explanation ? (
-                <div className="analysis-box">
-                  <div className="analysis-header">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    )}
+                  </div>
+                ) : (
+                  <div className="jd-tab-empty">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="10" />
                       <line x1="12" y1="16" x2="12" y2="12" />
                       <line x1="12" y1="8" x2="12.01" y2="8" />
                     </svg>
-                    <span>Match Analysis</span>
+                    <p>No analysis available.</p>
                   </div>
-                  <p className="analysis-text">{job.match_explanation}</p>
-
-                  {/* Skill score summary */}
-                  {job.skill_score_breakdown && Object.keys(job.skill_score_breakdown).length > 0 && (
-                    <div className="analysis-scores">
-                      <div className="analysis-score-header">Score Breakdown</div>
-                      <div className="analysis-score-grid">
-                        {Object.entries(job.skill_score_breakdown)
-                          .sort(([, a], [, b]) => b - a)
-                          .map(([skill, pts]) => (
-                            <div key={skill} className="analysis-score-item">
-                              <span className="analysis-score-skill">{skill}</span>
-                              <span className="analysis-score-pts">+{pts}</span>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p style={{ color: "var(--muted)", fontSize: "14px", padding: "20px 0" }}>No analysis available.</p>
-              )}
-            </div>
-          )}
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* ── Application Section (full width) ───────────────── */}
+      {/* Application Section */}
       {app && (
-        <div className="panel" style={{ marginTop: "20px" }}>
-          <h3>Application</h3>
-          <div className="app-detail-grid">
-            <div className="detail-section">
-              <label>Status</label>
-              <div><span className={"status-pill " + app.status}>{app.status}</span></div>
+        <div className="jd-card jd-app-card">
+          <div className="jd-card-header">
+            <h3 className="jd-card-title">Application</h3>
+            <div className="jd-app-header-right">
+              <StatusChip status={app.status} />
+              <span className="jd-app-date">
+                {app.sent_at ? new Date(app.sent_at).toLocaleDateString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "N/A"}
+              </span>
             </div>
-            <div className="detail-section">
-              <label>Sent</label>
-              <div>{app.sent_at ? new Date(app.sent_at).toLocaleDateString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "N/A"}</div>
-            </div>
-            {app.email_subject && (
-              <div className="detail-section full-width">
-                <label>Email Subject</label>
-                <div>{app.email_subject}</div>
-              </div>
-            )}
-            {app.error_message && (
-              <div className="detail-section full-width">
-                <label>Error</label>
-                <div className="error-text">{app.error_message}</div>
-              </div>
-            )}
           </div>
 
-          {/* Criteria grid */}
+          {app.error_message && (
+            <div className="jd-alert jd-alert-error">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
+              {app.error_message}
+            </div>
+          )}
+
+          {app.email_subject && (
+            <div className="jd-info-inline">
+              <span className="jd-info-label">Subject:</span>
+              <span className="jd-info-value">{app.email_subject}</span>
+            </div>
+          )}
+
+          {/* Criteria */}
           {app.criteria_data && Object.keys(app.criteria_data).length > 0 && (
-            <>
-              <h3 style={{ marginTop: "16px" }}>Criteria Sent</h3>
-              <div className="criteria-grid">
+            <div className="jd-criteria">
+              <h4 className="jd-criteria-title">Criteria Sent</h4>
+              <div className="jd-criteria-grid">
                 {app.criteria_data.role_level && (
-                  <div className="criteria-item">
-                    <span className="criteria-label">Role Level:</span>
-                    <span className="criteria-value">{String(app.criteria_data.role_level)}</span>
+                  <div className="jd-criteria-item">
+                    <span className="jd-criteria-label">Role</span>
+                    <span className="jd-criteria-value">{String(app.criteria_data.role_level)}</span>
                   </div>
                 )}
                 {app.criteria_data.min_years_required && (
-                  <div className="criteria-item">
-                    <span className="criteria-label">Exp Required:</span>
-                    <span className="criteria-value">{String(app.criteria_data.min_years_required)}yr</span>
+                  <div className="jd-criteria-item">
+                    <span className="jd-criteria-label">Experience</span>
+                    <span className="jd-criteria-value">{String(app.criteria_data.min_years_required)}yr</span>
                   </div>
                 )}
                 {app.criteria_data.sections_included && (
-                  <div className="criteria-item">
-                    <span className="criteria-label">Sections:</span>
-                    <span className="criteria-value">{String(app.criteria_data.sections_included)}</span>
+                  <div className="jd-criteria-item">
+                    <span className="jd-criteria-label">Sections</span>
+                    <span className="jd-criteria-value">{String(app.criteria_data.sections_included)}</span>
                   </div>
                 )}
                 {app.criteria_data.project_mentioned && (
-                  <div className="criteria-item">
-                    <span className="criteria-label">Project:</span>
-                    <span className="criteria-value">{String(app.criteria_data.project_mentioned)}</span>
+                  <div className="jd-criteria-item">
+                    <span className="jd-criteria-label">Project</span>
+                    <span className="jd-criteria-value">{String(app.criteria_data.project_mentioned)}</span>
                   </div>
                 )}
                 {app.criteria_data.email_used && (
-                  <div className="criteria-item">
-                    <span className="criteria-label">Email:</span>
-                    <span className="criteria-value">{String(app.criteria_data.email_used)}</span>
+                  <div className="jd-criteria-item">
+                    <span className="jd-criteria-label">Email</span>
+                    <span className="jd-criteria-value">{String(app.criteria_data.email_used)}</span>
                   </div>
                 )}
-                <div className="criteria-item">
-                  <span className="criteria-label">Resume:</span>
-                  <span className={"criteria-value" + (app.criteria_data.resume_attached ? " good" : " bad")}>
+                <div className="jd-criteria-item">
+                  <span className="jd-criteria-label">Resume</span>
+                  <span className={"jd-criteria-value " + (app.criteria_data.resume_attached ? "good" : "bad")}>
                     {app.criteria_data.resume_attached ? "Attached" : "Missing"}
                   </span>
                 </div>
               </div>
-            </>
-          )}
-
-          {app.skill_gaps?.length > 0 && (
-            <div className="app-gaps" style={{ marginTop: "12px" }}>
-              <label>Skill Gaps:</label>
-              {app.skill_gaps.map((gap) => (
-                <span key={gap} className="skill-tag gap">{gap}</span>
-              ))}
             </div>
           )}
 
+          {/* Cover Letter */}
           {app.cover_letter_text && (
-            <>
-              <details className="cover-letter-section" style={{ marginTop: "16px" }}>
-                <summary>View Cover Letter</summary>
-                <pre className="cover-letter">{app.cover_letter_text}</pre>
-              </details>
-              <button type="button" className={"btn-copy" + (copied ? " copied" : "")} onClick={copyCoverLetter}>
-                {copied ? "Copied!" : "Copy Cover Letter"}
+            <div className="jd-cover">
+              <button className="jd-cover-toggle" onClick={copyCoverLetter}>
+                {copied ? (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    Copy Cover Letter
+                  </>
+                )}
               </button>
-            </>
+              <pre className="jd-cover-text">{app.cover_letter_text}</pre>
+            </div>
           )}
         </div>
       )}
-
-      {/* ── Action buttons ─────────────────────────────────── */}
-      <div style={{ display: "flex", gap: "12px", marginTop: "20px" }}>
-        {job.apply_url && (
-          <a href={job.apply_url} target="_blank" rel="noopener noreferrer" className="apply-link">
-            Apply Now →
-          </a>
-        )}
-        {job.job_url && (
-          <a href={job.job_url} target="_blank" rel="noopener noreferrer" className="apply-btn">
-            View Original Job →
-          </a>
-        )}
-        <button className="btn" onClick={() => navigate(-1)}>
-          Go Back
-        </button>
-      </div>
     </>
   );
 }
