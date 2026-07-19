@@ -48,6 +48,8 @@ export default function JobDetail() {
   const [showDesc, setShowDesc] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<"matched" | "gaps" | "analysis">("matched");
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -63,6 +65,24 @@ export default function JobDetail() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  }
+
+  async function handleGenerateCoverLetter() {
+    if (!job) return;
+    setGenerating(true);
+    setGenerateError(null);
+    try {
+      const res = await api.jobs.generateCoverLetter(job.id);
+      setJob((prev) => prev ? {
+        ...prev,
+        application: prev.application
+          ? { ...prev.application, cover_letter_text: res.cover_letter }
+          : { id: 0, job: prev, sent_at: "", status: "draft", email_subject: "", cover_letter_text: res.cover_letter, error_message: "", skills_highlighted: [], skills_in_job_desc: [], skill_match_pct: 0, criteria_data: {}, skill_gaps: [], match_explanation: "" },
+      } : prev);
+    } catch (e: any) {
+      setGenerateError(e.message || "Failed to generate cover letter");
+    }
+    setGenerating(false);
   }
 
   if (loading) {
@@ -435,27 +455,81 @@ export default function JobDetail() {
           )}
 
           {/* Cover Letter */}
-          {app.cover_letter_text && (
+          {generateError && (
+            <div className="jd-alert jd-alert-error">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
+              {generateError}
+            </div>
+          )}
+
+          {app?.cover_letter_text ? (
             <div className="jd-cover">
-              <button className="jd-cover-toggle" onClick={copyCoverLetter}>
-                {copied ? (
+              <div className="jd-cover-actions">
+                <button className="jd-cover-toggle" onClick={copyCoverLetter}>
+                  {copied ? (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                      Copy
+                    </>
+                  )}
+                </button>
+                <button
+                  className="jd-btn jd-btn-secondary jd-btn-sm"
+                  onClick={handleGenerateCoverLetter}
+                  disabled={generating}
+                >
+                  {generating ? (
+                    <>
+                      <span className="spinner" /> Generating...
+                    </>
+                  ) : (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="23 4 23 10 17 10" />
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                      </svg>
+                      Regenerate
+                    </>
+                  )}
+                </button>
+              </div>
+              <pre className="jd-cover-text">{app.cover_letter_text}</pre>
+            </div>
+          ) : (
+            <div className="jd-cover-empty">
+              <button
+                className="jd-btn jd-btn-primary"
+                onClick={handleGenerateCoverLetter}
+                disabled={generating}
+              >
+                {generating ? (
                   <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    Copied!
+                    <span className="spinner" /> Generating cover letter...
                   </>
                 ) : (
                   <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                     </svg>
-                    Copy Cover Letter
+                    Generate Cover Letter
                   </>
                 )}
               </button>
-              <pre className="jd-cover-text">{app.cover_letter_text}</pre>
+              <p className="jd-cover-hint">Uses AI to create a tailored cover letter for this position.</p>
             </div>
           )}
         </div>

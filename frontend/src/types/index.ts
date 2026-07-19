@@ -72,3 +72,12 @@ export interface ApplyProgress {
   failed: number;
   current: string;
 }
+
+export interface AIConfig {
+  provider: string;
+  api_base_url: string;
+  model_name: string;
+  has_api_key: boolean;
+  has_ai_config: boolean;
+  presets: Record<string, { name: string; api_base_url: string; model: string }>;
+}

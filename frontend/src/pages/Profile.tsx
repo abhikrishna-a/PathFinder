@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { useTitle } from "../hooks/useTitle";
+import type { AIConfig } from "../types";
 
 interface ProfileData {
   name: string;
@@ -68,6 +70,14 @@ export default function Profile() {
   const [secSaving, setSecSaving] = useState(false);
   const [secInitialized, setSecInitialized] = useState(false);
 
+  const [aiConfig, setAiConfig] = useState<AIConfig | null>(null);
+  const [aiProvider, setAiProvider] = useState("openai");
+  const [aiBaseUrl, setAiBaseUrl] = useState("https://api.openai.com/v1");
+  const [aiModel, setAiModel] = useState("gpt-4o-mini");
+  const [aiApiKey, setAiApiKey] = useState("");
+  const [aiSaving, setAiSaving] = useState(false);
+  const [aiInitialized, setAiInitialized] = useState(false);
+
   useEffect(() => {
     api.profile.get().then((d: any) => {
       setProfile(d.profile || d);
@@ -78,6 +88,13 @@ export default function Profile() {
       setSecStatus(d);
       setSecEmail(d.sender_email || "");
       setSecInitialized(true);
+    });
+    api.profile.getAI().then((d) => {
+      setAiConfig(d);
+      setAiProvider(d.provider);
+      setAiBaseUrl(d.api_base_url);
+      setAiModel(d.model_name);
+      setAiInitialized(true);
     });
   }, []);
 
@@ -185,6 +202,45 @@ export default function Profile() {
       showToast("success", "Credentials removed.");
     } catch {
       showToast("error", "Failed to remove credentials.");
+    }
+  };
+
+  const handleProviderChange = (provider: string) => {
+    setAiProvider(provider);
+    if (aiConfig?.presets?.[provider]) {
+      const p = aiConfig.presets[provider];
+      setAiBaseUrl(p.api_base_url);
+      setAiModel(p.model);
+    }
+  };
+
+  const handleAiSave = async () => {
+    if (!aiBaseUrl || !aiModel) return;
+    setAiSaving(true);
+    try {
+      await api.profile.saveAI({
+        provider: aiProvider,
+        api_base_url: aiBaseUrl,
+        model_name: aiModel,
+        api_key: aiApiKey,
+      });
+      setAiConfig((prev) => prev ? { ...prev, provider: aiProvider, api_base_url: aiBaseUrl, model_name: aiModel, has_api_key: true, has_ai_config: true } : prev);
+      setAiApiKey("");
+      showToast("success", "AI settings saved.");
+    } catch (e: any) {
+      showToast("error", e.message || "Failed to save AI settings.");
+    }
+    setAiSaving(false);
+  };
+
+  const handleAiDelete = async () => {
+    try {
+      await api.profile.deleteAI();
+      setAiConfig((prev) => prev ? { ...prev, has_api_key: false, has_ai_config: false } : prev);
+      setAiApiKey("");
+      showToast("success", "AI settings removed.");
+    } catch {
+      showToast("error", "Failed to remove AI settings.");
     }
   };
 
@@ -470,6 +526,80 @@ export default function Profile() {
                   <button type="button" className="pf-btn-danger" onClick={handleSecDelete}>Remove</button>
                 )}
               </div>
+            </div>
+          )}
+        </SectionCard>
+
+        {/* AI Settings */}
+        <SectionCard title="AI Settings" description="Configure an LLM provider for AI-powered cover letter generation.">
+          {aiInitialized && (
+            <div className="pf-ai">
+              {aiConfig?.has_ai_config && (
+                <div className="pf-ai-status">
+                  <span className="pf-sec-dot pf-sec-dot-green" />
+                  <span>AI configured — ready to generate cover letters</span>
+                </div>
+              )}
+              <div className="pf-grid pf-grid-3">
+                <FormField label="Provider" hint="Select your LLM provider">
+                  <select
+                    className="pf-input pf-select"
+                    value={aiProvider}
+                    onChange={(e) => handleProviderChange(e.target.value)}
+                  >
+                    {aiConfig?.presets && Object.entries(aiConfig.presets).map(([key, preset]) => (
+                      <option key={key} value={key}>{preset.name}</option>
+                    ))}
+                    <option value="custom">Custom (OpenAI-compatible)</option>
+                  </select>
+                </FormField>
+                <FormField label="API Base URL" hint="Provider API endpoint">
+                  <input
+                    className="pf-input"
+                    type="url"
+                    value={aiBaseUrl}
+                    onChange={(e) => setAiBaseUrl(e.target.value)}
+                    placeholder="https://api.openai.com/v1"
+                  />
+                </FormField>
+                <FormField label="Model" hint="Model name">
+                  <input
+                    className="pf-input"
+                    type="text"
+                    value={aiModel}
+                    onChange={(e) => setAiModel(e.target.value)}
+                    placeholder="gpt-4o-mini"
+                  />
+                </FormField>
+              </div>
+              <FormField label="API Key" hint={aiConfig?.has_api_key ? "Key saved — enter new key to replace" : "Your API key (stored encrypted)"}>
+                <input
+                  className="pf-input"
+                  type="password"
+                  value={aiApiKey}
+                  onChange={(e) => setAiApiKey(e.target.value)}
+                  placeholder={aiConfig?.has_api_key ? "Enter new key to update" : "sk-..."}
+                  autoComplete="off"
+                />
+              </FormField>
+              <div className="pf-sec-actions">
+                <button
+                  type="button"
+                  className="pf-btn-primary"
+                  onClick={handleAiSave}
+                  disabled={aiSaving || !aiBaseUrl || !aiModel}
+                >
+                  {aiSaving ? "Saving..." : aiConfig?.has_ai_config ? "Update AI Settings" : "Save AI Settings"}
+                </button>
+                {aiConfig?.has_ai_config && (
+                  <button type="button" className="pf-btn-danger" onClick={handleAiDelete}>Remove</button>
+                )}
+              </div>
+              <p className="pf-ai-hint">
+                Works with OpenAI, Groq, DeepSeek, Gemini, OpenRouter, or any OpenAI-compatible API.
+                {" "}
+                <Link to="/jobs" className="pf-ai-link">Then generate cover letters from Job Details.</Link>
+              </p>
             </div>
           )}
         </SectionCard>
