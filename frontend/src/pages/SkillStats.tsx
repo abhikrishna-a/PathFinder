@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
+import { useTitle } from "../hooks/useTitle";
 
 interface SkillRow {
   skill_name: string;
@@ -22,6 +23,7 @@ function RankBadge({ rank }: { rank: number }) {
 }
 
 export default function SkillStats() {
+  useTitle("Skill Stats", "Skill demand analysis — top skills, match rates, and skill combinations.");
   const [skills, setSkills] = useState<SkillRow[]>([]);
   const [combos, setCombos] = useState<ComboRow[]>([]);
   const [totalApps, setTotalApps] = useState(0);

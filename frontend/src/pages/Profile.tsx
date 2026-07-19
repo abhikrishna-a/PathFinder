@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { api } from "../api/client";
+import { useTitle } from "../hooks/useTitle";
 
 interface ProfileData {
   name: string;
@@ -49,6 +50,7 @@ function FormField({ label, hint, children, className = "" }: { label: string; h
 }
 
 export default function Profile() {
+  useTitle("Profile", "Manage your skills, experience, and job matching preferences.");
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

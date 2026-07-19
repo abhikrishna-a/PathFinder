@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
+import { useTitle } from "../hooks/useTitle";
 
 interface WebApplyItem {
   id: number;
@@ -55,6 +56,7 @@ function MatchBadge({ pct }: { pct: number }) {
 }
 
 export default function WebApply() {
+  useTitle("Web Apply", "Jobs applied directly through company websites and career pages.");
   const [items, setItems] = useState<WebApplyItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
