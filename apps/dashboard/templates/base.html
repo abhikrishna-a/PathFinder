@@ -37,6 +37,25 @@
         PathFinder &mdash; Open Source Job Portal &middot; <a href="https://github.com" target="_blank" rel="noopener">GitHub</a>
     </footer>
     <script>
+        // shared dropdown toggle
+        function toggleDropdown(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const isOpen = el.classList.contains('open');
+            closeAllDropdowns();
+            if (!isOpen) el.classList.add('open');
+        }
+
+        function closeAllDropdowns() {
+            document.querySelectorAll('.dropdown-menu.open').forEach(el => el.classList.remove('open'));
+        }
+
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('.filter-pill, .sort-pill')) {
+                closeAllDropdowns();
+            }
+        });
+
         {% block scripts %}{% endblock %}
     </script>
 </body>

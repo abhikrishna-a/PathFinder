@@ -11,14 +11,6 @@ from apps.jobs.services import _extract_salary_from_text
 
 logger = logging.getLogger(__name__)
 
-SALARY_PATTERNS = [
-    r"[\u20b9\uffe0]?\s*(\d[\d,]*)\s*[-\u2013to]+\s*[\u20b9\uffe0]?\s*(\d[\d,]*)\s*(?:lpa|lakhs?|k|per month|pm|annually|yearly|p\.?a\.?)?",
-    r"(\d[\d,]*)\s*[-\u2013to]+\s*(\d[\d,]*)\s*(?:k|,?000)\s*(?:per month|pm|monthly|/month)?",
-    r"salary[:\s]*[\u20b9\uffe0]?\s*(\d[\d,]*)\s*(?:k|,?000)?",
-    r"(\d[\d,]*)\s*(?:k|,?000)\s*(?:per month|pm|monthly|/month)",
-    r"[\u20b9\uffe0]\s*(\d[\d,]*)\s*(?:lpa|lakhs?|k|per month|pm)",
-]
-
 ALL_MY_SKILLS = []
 for _cat in PROFILE["skills"].values():
     ALL_MY_SKILLS.extend(_cat)
@@ -40,49 +32,6 @@ def _reject_job(job: dict, reason: str) -> dict:
 def _is_north_india(location: str) -> bool:
     loc = location.lower()
     return any(state in loc for state in NORTH_INDIA_STATES)
-
-
-def _extract_salary(text: str) -> int | None:
-    text_lower = text.lower()
-
-    if any(w in text_lower for w in [
-        "competitive salary", "negotiable", "market rate", "based on experience"
-    ]):
-        return None
-
-    for pat in SALARY_PATTERNS:
-        matches = re.finditer(pat, text, re.IGNORECASE)
-        for m in matches:
-            groups = m.groups()
-            numbers = []
-            for g in groups:
-                if g:
-                    clean = g.replace(",", "").replace(" ", "")
-                    try:
-                        numbers.append(int(clean))
-                    except ValueError:
-                        pass
-
-            if not numbers:
-                continue
-
-            salary = max(numbers)
-            context = text_lower[max(0, m.start() - 20):m.end() + 20]
-
-            if "lpa" in context or "lakhs" in context or "lakh" in context:
-                salary = salary * 100000
-            elif salary < 1000:
-                if "k" in context:
-                    salary = salary * 1000
-                elif "per month" in context or "pm" in context or "monthly" in context:
-                    salary = salary * 12
-                else:
-                    salary = salary * 1000
-
-            if salary >= MIN_SALARY:
-                return salary
-
-    return None
 
 
 def _extract_experience_years(text: str) -> int | None:
@@ -172,8 +121,9 @@ def match_job(job: dict) -> dict:
             return _reject_job(job, f"Not a target role: {job.get('title', '')}")
 
     salary = job.get("salary", 0)
+    salary_display = job.get("salary_display", "")
     if not salary:
-        salary, _ = _extract_salary_from_text(search_text)
+        salary, salary_display = _extract_salary_from_text(search_text)
     if salary and salary < MIN_SALARY:
         return _reject_job(job, f"Salary too low (\u20b9{salary:,})")
 
@@ -263,6 +213,7 @@ def match_job(job: dict) -> dict:
     job["status"] = status
     job["relevant_project"] = project
     job["salary"] = salary
+    job["salary_display"] = salary_display
     job["filter_reason"] = ""
     job["match_explanation"] = explanation
 
@@ -270,7 +221,7 @@ def match_job(job: dict) -> dict:
 
 
 def match_all_jobs(jobs: list[dict]) -> list[dict]:
-    matched = []
+    all_jobs = []
     ignored_count = 0
     north_india_blocked = 0
     salary_blocked = 0
@@ -290,15 +241,14 @@ def match_all_jobs(jobs: list[dict]) -> list[dict]:
         elif reason.startswith("Too many missing skills"):
             skill_gap_blocked += 1
 
-        if result["status"] != "ignored":
-            matched.append(result)
-        else:
+        all_jobs.append(result)
+        if result["status"] == "ignored":
             ignored_count += 1
 
-    matched.sort(key=lambda j: j["match_score"], reverse=True)
+    all_jobs.sort(key=lambda j: j["match_score"], reverse=True)
     logger.info(
-        f"Matched {len(matched)}, ignored {ignored_count} "
+        f"Processed {len(all_jobs)} total: {len(all_jobs) - ignored_count} matched, {ignored_count} ignored "
         f"(North India: {north_india_blocked}, Salary: {salary_blocked}, "
         f"Experience: {experience_blocked}, Skill gaps: {skill_gap_blocked})"
     )
-    return matched
+    return all_jobs

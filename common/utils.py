@@ -61,6 +61,65 @@ def clean_html(html_text: str) -> str:
     return text
 
 
+def html_to_markdown(html_text: str) -> str:
+    """Convert HTML to markdown, preserving formatting."""
+    if not html_text:
+        return ""
+    if "<" not in html_text:
+        return html_text.strip()
+
+    text = html_text
+
+    text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?p[^>]*>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?div[^>]*>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?li[^>]*>', '\n- ', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?[ou]l[^>]*>', '\n', text, flags=re.IGNORECASE)
+
+    text = re.sub(r'<a\s+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', r'[\2](\1)', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?b[^>]*>', '**', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?strong[^>]*>', '**', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?i[^>]*>', '*', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?em[^>]*>', '*', text, flags=re.IGNORECASE)
+
+    text = re.sub(r'<[^>]+>', '', text)
+
+    import html as html_mod
+    text = html_mod.unescape(text)
+
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r'[^\S\n]+', ' ', text)
+    lines = [line.strip() for line in text.split('\n')]
+    text = '\n'.join(lines)
+
+    text = _collapse_list_items(text)
+    return text.strip()
+
+
+def _collapse_list_items(text: str) -> str:
+    """Collapse blank lines between consecutive list items and remove empty list items."""
+    lines = text.split('\n')
+    result = []
+    in_list = False
+    for line in lines:
+        stripped = line.strip()
+        is_list_item = stripped.startswith('- ') or re.match(r'^\d+\.\s', stripped)
+        is_empty_bullet = stripped == '-' or stripped == '- ' or re.match(r'^\d+\.\s*$', stripped)
+        if is_empty_bullet:
+            continue
+        if is_list_item:
+            in_list = True
+            result.append(line)
+        elif in_list and stripped == '':
+            continue
+        elif in_list and stripped != '' and not is_list_item:
+            in_list = False
+            result.append(line)
+        else:
+            result.append(line)
+    return '\n'.join(result)
+
+
 def safe_console(text: str) -> str:
     """Make text safe for Windows console output."""
     try:

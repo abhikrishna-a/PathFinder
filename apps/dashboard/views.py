@@ -113,6 +113,25 @@ def job_list(request):
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
+    sort_labels = {
+        "-match_score": "Score (High to Low)",
+        "match_score": "Score (Low to High)",
+        "-fetched_date": "Date (Newest First)",
+        "company": "Company (A \u2192 Z)",
+        "title": "Title (A \u2192 Z)",
+        "-salary": "Salary (High to Low)",
+        "salary": "Salary (Low to High)",
+    }
+
+    active_chips = []
+    if status_filter != "all":
+        active_chips.append({"label": f"Status: {status_filter.title()}", "param": "status", "value": status_filter})
+    if location_filter != "all":
+        active_chips.append({"label": f"Location: {location_filter.title()}", "param": "location", "value": location_filter})
+    if salary_filter != "all":
+        salary_labels = {"has": "Has Salary", "3l": "\u20b93L+ PA", "6l": "\u20b96L+ PA", "10l": "\u20b910L+ PA"}
+        active_chips.append({"label": f"Salary: {salary_labels.get(salary_filter, salary_filter)}", "param": "salary", "value": salary_filter})
+
     context = {
         "jobs": page_obj,
         "page_obj": page_obj,
@@ -120,7 +139,9 @@ def job_list(request):
         "location_filter": location_filter,
         "salary_filter": salary_filter,
         "current_sort": sort,
+        "sort_label": sort_labels.get(sort, "Score (High to Low)"),
         "total_count": paginator.count,
+        "active_chips": active_chips,
     }
     return render(request, "jobs.html", context)
 
@@ -160,11 +181,16 @@ def application_list(request):
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
+    active_chips = []
+    if status_filter != "all":
+        active_chips.append({"label": f"Status: {status_filter.title()}", "param": "status", "value": status_filter})
+
     return render(request, "applications.html", {
         "applications": page_obj,
         "page_obj": page_obj,
         "status_filter": status_filter,
         "total_count": paginator.count,
+        "active_chips": active_chips,
     })
 
 

@@ -7,7 +7,8 @@ import httpx
 from bs4 import BeautifulSoup
 
 from config.queries import CUTSHORT_SEARCH_URLS
-from common.utils import make_uid, clean_html
+from common.utils import make_uid, html_to_markdown
+from apps.jobs.services import _extract_salary_from_text
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,11 @@ def _parse_job(job: dict) -> dict | None:
     max_exp = exp_data.get("max", 0)
 
     description_html = job.get("sanitizedComment", "")
-    description = clean_html(description_html)
+    description = html_to_markdown(description_html)
+
+    salary = salary_data.get("max", 0) if salary_data else 0
+    if not salary:
+        salary, salary_display = _extract_salary_from_text(f"{title} {description}")
 
     skills = job.get("allSkills", [])
 
@@ -72,7 +77,7 @@ def _parse_job(job: dict) -> dict | None:
         "description": description,
         "apply_url": apply_url,
         "apply_email": "",
-        "salary": salary_data.get("max", 0) if salary_data else 0,
+        "salary": salary,
         "salary_display": salary_display,
         "experience": f"{min_exp}-{max_exp} years" if max_exp else "",
         "min_experience": min_exp,
@@ -121,23 +126,22 @@ def fetch_cutshort_jobs() -> list[dict]:
                 .get("queries", [])
             )
 
-            jobs_list = []
+            page_count = 0
             for query in queries:
-                page_data = (
-                    query.get("state", {})
-                    .get("data", {})
-                    .get("data", {})
-                    .get("pageData", {})
-                )
-                jobs_list = page_data.get("jobs", [])
+                state = query.get("state") or {}
+                inner = state.get("data") or {}
+                deeper = inner.get("data") or {}
+                page_data = deeper.get("pageData") or {}
+                jobs_list = page_data.get("jobs") or []
 
                 for job in jobs_list:
                     parsed = _parse_job(job)
                     if parsed and parsed["uid"] not in seen_uids:
                         seen_uids.add(parsed["uid"])
                         all_jobs.append(parsed)
+                        page_count += 1
 
-            logger.info(f"  Got {len(jobs_list)} jobs from this page")
+            logger.info(f"  Got {page_count} jobs from this page")
             time.sleep(1)
 
         except Exception as e:
