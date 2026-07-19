@@ -15,11 +15,22 @@ from common.utils import is_company_email as _validate_company_email, EMAIL_REGE
 logger = logging.getLogger(__name__)
 
 SALARY_PATTERNS = [
-    r"[\u20b9\uffe0]?\s*(\d[\d,]*)\s*[-\u2013to]+\s*[\u20b9\uffe0]?\s*(\d[\d,]*)\s*(?:lpa|lakhs?|k|per month|pm|annually|yearly|p\.?a\.?)?",
-    r"(\d[\d,]*)\s*[-\u2013to]+\s*(\d[\d,]*)\s*(?:k|,?000)\s*(?:per month|pm|monthly|/month)?",
-    r"salary[:\s]*[\u20b9\uffe0]?\s*(\d[\d,]*)\s*(?:k|,?000)?",
-    r"(\d[\d,]*)\s*(?:k|,?000)\s*(?:per month|pm|monthly|/month)",
-    r"[\u20b9\uffe0]\s*(\d[\d,]*)\s*(?:lpa|lakhs?|k|per month|pm)",
+    r"(?:upto|up\s*to|max|maximum|capped?\s*at)\s*[\u20b9\uffe0Rs\.]*\s*(\d[\d,]*)\s*(?:[-\u2013to]+\s*[\u20b9\uffe0Rs\.]*\s*(\d[\d,]*))?\s*(?:lpa|lakhs?|per\s*annum|p\.?a\.?)",
+    r"[\u20b9\uffe0Rs\.]+\s*(\d[\d,]*)\s*[-\u2013to]+\s*[\u20b9\uffe0Rs\.]*\s*(\d[\d,]*)\s*(?:lpa|lakhs?|per\s*annum|p\.?a\.?|per\s*month|pm|monthly)?",
+    r"[\u20b9\uffe0Rs\.]+\s*(\d[\d,]*)\s*/?-?\s*(?:lpa|lakhs?|per\s*annum|p\.?a\.?|per\s*month|pm|monthly|k\b)",
+    r"(?:ctc|stipend|salary|package|compensation|pay)\s*[:\s]*[\u20b9\uffe0Rs\.INR]*\s*(\d[\d,]*)\s*[-\u2013to]+\s*(\d[\d,]*)\s*(?:lpa|lakhs?|k|per\s*month|pm|monthly)?",
+    r"(?:ctc|stipend|salary|package|compensation|pay)\s*[:\s]*[\u20b9\uffe0Rs\.INR]*\s*(\d[\d,]*)\s*(?:lpa|lakhs?|k|per\s*month|pm|monthly|per\s*annum|p\.?a\.?|/month)",
+    r"(\d[\d,]*)\s*[-\u2013to]+\s*(\d[\d,]*)\s*(?:lpa|lakhs?|per\s*annum|p\.?a\.?)",
+    r"(\d[\d,]*)\s*[-\u2013to]+\s*(\d[\d,]*)\s*(?:k|,?000)\s*(?:per\s*month|pm|monthly|/month)?",
+    r"(\d[\d,]*)\s*(?:lpa|lakhs?|per\s*annum|p\.?a\.?)",
+    r"(\d[\d,]*)\s*(?:k|,?000)\s*(?:per\s*month|pm|monthly|/month)",
+]
+
+_SALARY_NEGATIVE = [
+    "program fee", "training fee", "course fee", "certification fee",
+    "internship fee", "enrollment fee", "registration fee",
+    "tuition", "cost of", "price of", "investment of",
+    "you pay", "candidate pays", "participant pays",
 ]
 
 
@@ -56,17 +67,30 @@ def _extract_salary_from_text(text: str) -> tuple[int, str]:
                 continue
 
             salary = max(numbers)
-            context = text_lower[max(0, m.start() - 20):m.end() + 20]
+            window_start = max(0, m.start() - 60)
+            window_end = min(len(text_lower), m.end() + 60)
+            context = text_lower[window_start:window_end]
 
-            if "lpa" in context or "lakhs" in context or "lakh" in context:
-                salary = salary * 100000
+            if any(neg in context for neg in _SALARY_NEGATIVE):
+                continue
+
+            has_annual_ctx = "lpa" in context or "lakhs" in context or "lakh" in context or "per annum" in context or "p.a." in context
+            has_monthly_ctx = "per month" in context or "pm" in context or "monthly" in context or "/month" in context
+            has_k_ctx = "k" in context and not has_annual_ctx
+
+            if has_annual_ctx:
+                if salary < 100000:
+                    salary = salary * 100000
+            elif has_monthly_ctx:
+                if has_k_ctx:
+                    salary = salary * 1000
+                salary = salary * 12
+            elif has_k_ctx:
+                salary = salary * 1000
             elif salary < 1000:
-                if "k" in context:
-                    salary = salary * 1000
-                elif "per month" in context or "pm" in context or "monthly" in context:
-                    salary = salary * 12
-                else:
-                    salary = salary * 1000
+                salary = salary * 1000
+            elif salary >= 1000 and salary < 100000:
+                salary = salary * 100000
 
             if salary >= MIN_SALARY:
                 return salary, _format_salary(salary)
@@ -93,30 +117,49 @@ def save_job(job_data: dict) -> Job:
     if description and "<" in description:
         description = html_to_markdown(description)
 
-    job, created = Job.objects.update_or_create(
-        uid=job_data["uid"],
-        defaults={
-            "title": job_data.get("title", ""),
-            "company": job_data.get("company", ""),
-            "location": job_data.get("location", ""),
-            "description": description,
-            "source": job_data.get("source", ""),
-            "posted_date": job_data.get("posted_date", ""),
-            "match_score": job_data.get("match_score", 0),
-            "status": job_data.get("status", "new"),
-            "apply_email": job_data.get("apply_email", ""),
-            "apply_url": job_data.get("apply_url", ""),
-            "search_query": job_data.get("search_query", ""),
-            "matched_skills": job_data.get("matched_skills", []),
-            "skill_score_breakdown": job_data.get("skill_score_breakdown", {}),
-            "skill_gaps": job_data.get("skill_gaps", []),
-            "filter_reason": job_data.get("filter_reason", ""),
-            "match_explanation": job_data.get("match_explanation", ""),
-            "job_url": job_data.get("job_url", ""),
-            "salary": salary,
-            "salary_display": salary_display,
-        },
-    )
+    existing = Job.objects.filter(uid=job_data["uid"]).first()
+
+    defaults = {
+        "title": job_data.get("title", ""),
+        "company": job_data.get("company", ""),
+        "location": job_data.get("location", ""),
+        "description": description,
+        "source": job_data.get("source", ""),
+        "posted_date": job_data.get("posted_date", ""),
+        "match_score": job_data.get("match_score", 0),
+        "status": job_data.get("status", "new"),
+        "apply_email": job_data.get("apply_email", ""),
+        "apply_url": job_data.get("apply_url", ""),
+        "search_query": job_data.get("search_query", ""),
+        "matched_skills": job_data.get("matched_skills", []),
+        "skill_score_breakdown": job_data.get("skill_score_breakdown", {}),
+        "skill_gaps": job_data.get("skill_gaps", []),
+        "filter_reason": job_data.get("filter_reason", ""),
+        "match_explanation": job_data.get("match_explanation", ""),
+        "job_url": job_data.get("job_url", ""),
+    }
+
+    if existing:
+        if salary:
+            defaults["salary"] = salary
+            defaults["salary_display"] = salary_display
+        elif not existing.salary:
+            defaults["salary"] = 0
+            defaults["salary_display"] = ""
+        else:
+            pass
+        job = existing
+        for k, v in defaults.items():
+            setattr(job, k, v)
+        job.save()
+        created = False
+    else:
+        defaults["salary"] = salary
+        defaults["salary_display"] = salary_display
+        job, created = Job.objects.update_or_create(
+            uid=job_data["uid"],
+            defaults=defaults,
+        )
 
     if not created:
         new_status = job_data.get("status", "")

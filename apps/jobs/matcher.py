@@ -11,14 +11,6 @@ from apps.jobs.services import _extract_salary_from_text
 
 logger = logging.getLogger(__name__)
 
-SALARY_PATTERNS = [
-    r"[\u20b9\uffe0]?\s*(\d[\d,]*)\s*[-\u2013to]+\s*[\u20b9\uffe0]?\s*(\d[\d,]*)\s*(?:lpa|lakhs?|k|per month|pm|annually|yearly|p\.?a\.?)?",
-    r"(\d[\d,]*)\s*[-\u2013to]+\s*(\d[\d,]*)\s*(?:k|,?000)\s*(?:per month|pm|monthly|/month)?",
-    r"salary[:\s]*[\u20b9\uffe0]?\s*(\d[\d,]*)\s*(?:k|,?000)?",
-    r"(\d[\d,]*)\s*(?:k|,?000)\s*(?:per month|pm|monthly|/month)",
-    r"[\u20b9\uffe0]\s*(\d[\d,]*)\s*(?:lpa|lakhs?|k|per month|pm)",
-]
-
 ALL_MY_SKILLS = []
 for _cat in PROFILE["skills"].values():
     ALL_MY_SKILLS.extend(_cat)
@@ -40,49 +32,6 @@ def _reject_job(job: dict, reason: str) -> dict:
 def _is_north_india(location: str) -> bool:
     loc = location.lower()
     return any(state in loc for state in NORTH_INDIA_STATES)
-
-
-def _extract_salary(text: str) -> int | None:
-    text_lower = text.lower()
-
-    if any(w in text_lower for w in [
-        "competitive salary", "negotiable", "market rate", "based on experience"
-    ]):
-        return None
-
-    for pat in SALARY_PATTERNS:
-        matches = re.finditer(pat, text, re.IGNORECASE)
-        for m in matches:
-            groups = m.groups()
-            numbers = []
-            for g in groups:
-                if g:
-                    clean = g.replace(",", "").replace(" ", "")
-                    try:
-                        numbers.append(int(clean))
-                    except ValueError:
-                        pass
-
-            if not numbers:
-                continue
-
-            salary = max(numbers)
-            context = text_lower[max(0, m.start() - 20):m.end() + 20]
-
-            if "lpa" in context or "lakhs" in context or "lakh" in context:
-                salary = salary * 100000
-            elif salary < 1000:
-                if "k" in context:
-                    salary = salary * 1000
-                elif "per month" in context or "pm" in context or "monthly" in context:
-                    salary = salary * 12
-                else:
-                    salary = salary * 1000
-
-            if salary >= MIN_SALARY:
-                return salary
-
-    return None
 
 
 def _extract_experience_years(text: str) -> int | None:
