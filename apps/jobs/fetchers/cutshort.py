@@ -126,23 +126,22 @@ def fetch_cutshort_jobs() -> list[dict]:
                 .get("queries", [])
             )
 
-            jobs_list = []
+            page_count = 0
             for query in queries:
-                page_data = (
-                    query.get("state", {})
-                    .get("data", {})
-                    .get("data", {})
-                    .get("pageData", {})
-                )
-                jobs_list = page_data.get("jobs", [])
+                state = query.get("state") or {}
+                inner = state.get("data") or {}
+                deeper = inner.get("data") or {}
+                page_data = deeper.get("pageData") or {}
+                jobs_list = page_data.get("jobs") or []
 
                 for job in jobs_list:
                     parsed = _parse_job(job)
                     if parsed and parsed["uid"] not in seen_uids:
                         seen_uids.add(parsed["uid"])
                         all_jobs.append(parsed)
+                        page_count += 1
 
-            logger.info(f"  Got {len(jobs_list)} jobs from this page")
+            logger.info(f"  Got {page_count} jobs from this page")
             time.sleep(1)
 
         except Exception as e:

@@ -6,7 +6,7 @@ from apps.jobs.views import (
     OverviewStats, SkillStats, CompanyStats, LocationStats,
     WebApplyList, MissingEmailsList, UserProfile,
 )
-from apps.jobs.views.fetcher import run_fetcher
+from apps.jobs.views.fetcher import run_fetcher, fetcher_status
 
 api_urlpatterns = [
     # Jobs
@@ -29,4 +29,5 @@ api_urlpatterns = [
 
     # Actions
     path("fetcher/run/", run_fetcher, name="api_run_fetcher"),
+    path("fetcher/status/", fetcher_status, name="api_fetcher_status"),
 ]

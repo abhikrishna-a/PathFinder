@@ -92,6 +92,9 @@ def _extract_salary_from_text(text: str) -> tuple[int, str]:
             elif salary >= 1000 and salary < 100000:
                 salary = salary * 100000
 
+            if salary > 50000000:
+                continue
+
             if salary >= MIN_SALARY:
                 return salary, _format_salary(salary)
 
@@ -332,6 +335,81 @@ def is_company_email(email: str, company: str = "") -> bool:
 def _extract_emails_from_text(text: str) -> list[str]:
     raw = EMAIL_REGEX.findall(text)
     return [e.lower() for e in raw if is_company_email(e)]
+
+
+def _get_http_client() -> httpx.Client:
+    return httpx.Client(
+        http2=True, timeout=15, follow_redirects=True,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        },
+    )
+
+
+def find_job_salary(job: dict, client: httpx.Client | None = None) -> tuple[int, str]:
+    close_client = False
+    if client is None:
+        client = _get_http_client()
+        close_client = True
+
+    try:
+        url = job.get("apply_url", "")
+        if not url:
+            return 0, ""
+
+        try:
+            resp = client.get(url, follow_redirects=True, timeout=15)
+            if resp.status_code == 200:
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(resp.text, "html.parser")
+                for tag in soup(["script", "style", "nav", "footer", "header"]):
+                    tag.decompose()
+                page_text = soup.get_text(separator="\n", strip=True)
+                salary, salary_display = _extract_salary_from_text(page_text)
+                if salary:
+                    logger.info(f"  Found salary from page: {salary_display}")
+                    return salary, salary_display
+        except Exception as e:
+            logger.debug(f"  Page fetch failed for salary: {e}")
+
+        description = f"{job.get('title', '')} {job.get('description', '')} {job.get('full_text', '')}"
+        return _extract_salary_from_text(description)
+
+    finally:
+        if close_client:
+            client.close()
+
+    return 0, ""
+
+
+def enrich_jobs_with_salaries(jobs: list[dict], batch_size: int = 5) -> list[dict]:
+    client = _get_http_client()
+
+    enriched = 0
+    for i, job in enumerate(jobs):
+        if job.get("salary", 0):
+            continue
+
+        url = job.get("apply_url", "")
+        if not url:
+            continue
+
+        logger.info(f"  [{i+1}/{len(jobs)}] Extracting salary for {job.get('company', '')}...")
+
+        salary, salary_display = find_job_salary(job, client)
+        if salary:
+            job["salary"] = salary
+            job["salary_display"] = salary_display
+            enriched += 1
+
+        if (i + 1) % batch_size == 0:
+            time.sleep(1)
+
+    client.close()
+    logger.info(f"Enriched {enriched}/{len(jobs)} jobs with salary from detail pages")
+    return jobs
 
 
 def find_job_email(job: dict, client: httpx.Client | None = None) -> str:
