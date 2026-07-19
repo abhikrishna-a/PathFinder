@@ -22,6 +22,8 @@ dependencies = [
     "lxml>=4.9",
     "djangorestframework>=3.17.1",
     "django-cors-headers>=4.9.0",
+    "channels>=4.3.2",
+    "daphne>=4.2.2",
 ]
 
 [dependency-groups]
