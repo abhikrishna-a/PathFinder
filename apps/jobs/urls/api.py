@@ -5,8 +5,11 @@ from apps.jobs.views import (
     ApplicationList,
     OverviewStats, SkillStats, CompanyStats, LocationStats,
     WebApplyList, MissingEmailsList, UserProfile,
+    ApplyQueueList, ApplyToJob, BatchApply,
+    ProfileResume, ProfileSecurity,
 )
 from apps.jobs.views.fetcher import run_fetcher, fetcher_status
+from apps.jobs.views.apply_queue import apply_progress
 
 api_urlpatterns = [
     # Jobs
@@ -16,16 +19,26 @@ api_urlpatterns = [
     # Applications
     path("applications/", ApplicationList.as_view(), name="api_application_list"),
 
+    # Apply Queue
+    path("apply-queue/", ApplyQueueList.as_view(), name="api_apply_queue"),
+    path("apply-queue/batch/", BatchApply.as_view(), name="api_batch_apply"),
+    path("apply-queue/progress/", apply_progress, name="api_apply_progress"),
+    path("jobs/<int:job_id>/apply/", ApplyToJob.as_view(), name="api_apply_to_job"),
+
     # Stats
     path("stats/overview/", OverviewStats.as_view(), name="api_overview"),
     path("stats/skills/", SkillStats.as_view(), name="api_skill_stats"),
     path("stats/companies/", CompanyStats.as_view(), name="api_company_stats"),
     path("stats/locations/", LocationStats.as_view(), name="api_location_stats"),
 
+    # Profile
+    path("profile/", UserProfile.as_view(), name="api_profile"),
+    path("profile/resume/", ProfileResume.as_view(), name="api_profile_resume"),
+    path("profile/security/", ProfileSecurity.as_view(), name="api_profile_security"),
+
     # Other
     path("web-apply/", WebApplyList.as_view(), name="api_web_apply"),
     path("missing-emails/", MissingEmailsList.as_view(), name="api_missing_emails"),
-    path("profile/", UserProfile.as_view(), name="api_profile"),
 
     # Actions
     path("fetcher/run/", run_fetcher, name="api_run_fetcher"),
