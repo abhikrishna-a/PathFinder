@@ -70,5 +70,8 @@ export const api = {
         return r.json();
       });
     },
+    status(): Promise<Record<string, unknown>> {
+      return get("/fetcher/status/");
+    },
   },
 };
