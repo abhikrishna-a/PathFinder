@@ -91,7 +91,33 @@ def html_to_markdown(html_text: str) -> str:
     text = re.sub(r'[^\S\n]+', ' ', text)
     lines = [line.strip() for line in text.split('\n')]
     text = '\n'.join(lines)
+
+    text = _collapse_list_items(text)
     return text.strip()
+
+
+def _collapse_list_items(text: str) -> str:
+    """Collapse blank lines between consecutive list items and remove empty list items."""
+    lines = text.split('\n')
+    result = []
+    in_list = False
+    for line in lines:
+        stripped = line.strip()
+        is_list_item = stripped.startswith('- ') or re.match(r'^\d+\.\s', stripped)
+        is_empty_bullet = stripped == '-' or stripped == '- ' or re.match(r'^\d+\.\s*$', stripped)
+        if is_empty_bullet:
+            continue
+        if is_list_item:
+            in_list = True
+            result.append(line)
+        elif in_list and stripped == '':
+            continue
+        elif in_list and stripped != '' and not is_list_item:
+            in_list = False
+            result.append(line)
+        else:
+            result.append(line)
+    return '\n'.join(result)
 
 
 def safe_console(text: str) -> str:

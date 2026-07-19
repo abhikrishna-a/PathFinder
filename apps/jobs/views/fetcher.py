@@ -20,19 +20,36 @@ def _run_fetcher_background():
         from apps.jobs.services import (
             enrich_jobs_with_emails, is_company_email,
             save_job, save_application, save_web_apply,
-            update_daily_stats, job_exists,
+            update_daily_stats, _extract_salary_from_text,
         )
-        from apps.jobs.models import Application, RawJob, JobEvent
+        from apps.jobs.models import Application, RawJob, JobEvent, Job
         from config.settings import MATCH_THRESHOLD_APPLY
 
         _fetcher_running = True
 
+        existing_uids = set(Job.objects.values_list("uid", flat=True))
+
         raw_jobs = fetch_all_jobs()
         batch_id = RawJob.new_batch_id()
 
+        new_jobs = []
+        updated_salary = 0
         for r in raw_jobs:
+            uid = r.get("uid", "")
+            if uid in existing_uids:
+                job = Job.objects.filter(uid=uid).first()
+                if job and not job.salary:
+                    text = f"{r.get('title', '')} {r.get('description', '')[:800]}"
+                    salary, salary_display = _extract_salary_from_text(text)
+                    if salary:
+                        job.salary = salary
+                        job.salary_display = salary_display
+                        job.save(update_fields=["salary", "salary_display"])
+                        updated_salary += 1
+                continue
+
             RawJob.objects.create(
-                uid=r.get("uid", ""),
+                uid=uid,
                 title=r.get("title", ""),
                 company=r.get("company", ""),
                 location=r.get("location", ""),
@@ -47,8 +64,18 @@ def _run_fetcher_background():
                 fetch_batch_id=batch_id,
                 raw_payload=r,
             )
+            new_jobs.append(r)
 
-        all_jobs = match_all_jobs(raw_jobs)
+        logger.info(
+            "Fetcher: %d raw jobs, %d new, %d existing (%d salary backfilled)",
+            len(raw_jobs), len(new_jobs), len(raw_jobs) - len(new_jobs), updated_salary,
+        )
+
+        if not new_jobs:
+            update_daily_stats()
+            return
+
+        all_jobs = match_all_jobs(new_jobs)
 
         already_applied_uids = set(
             Application.objects.select_related("job")
@@ -126,8 +153,8 @@ def _run_fetcher_background():
         update_daily_stats()
 
         logger.info(
-            "Fetcher complete: raw=%d batch=%s total=%d applied=%d web_apply=%d failed=%d",
-            len(raw_jobs), batch_id, len(all_jobs), applied, web_applied, failed_apply,
+            "Fetcher complete: new=%d batch=%s saved=%d applied=%d web_apply=%d failed=%d",
+            len(new_jobs), batch_id, len(all_jobs), applied, web_applied, failed_apply,
         )
     except Exception:
         logger.exception("Fetcher failed")
