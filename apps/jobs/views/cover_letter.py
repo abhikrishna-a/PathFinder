@@ -398,6 +398,84 @@ def _is_term_allowed(term: str, allowed: set[str]) -> bool:
     return False
 
 
+_UNGROUNDED_CLAIM_PATTERNS = {
+    "testing": {
+        "vague_phrases": [
+            r"writing (?:unit |integration |end-to-end |e2e )?tests?",
+            r"comfortable with testing",
+            r"full lifecycle.*testing",
+            r"design through (?:production )?(?:rollout|testing)",
+            r"participating in.*test",
+            r"test(?:ing)? (?:practices|experience)",
+        ],
+        "grounding_keywords": [
+            "pytest", "jest", "cypress", "playwright", "selenium", "unittest",
+            "test suite", "ci test", "factory_boy", "pytest-django",
+        ],
+    },
+    "monitoring": {
+        "vague_phrases": [
+            r"comfortable with monitoring", r"observability (?:practices|experience)",
+        ],
+        "grounding_keywords": [
+            "prometheus", "grafana", "sentry", "datadog", "opentelemetry",
+            "cloudwatch", "elk",
+        ],
+    },
+    "security": {
+        "vague_phrases": [
+            r"security (?:practices|experience|best practices)",
+            r"comfortable with security",
+        ],
+        "grounding_keywords": [
+            "owasp", "penetration test", "vulnerability scan", "oauth", "jwt",
+            "rbac", "encryption",
+        ],
+    },
+}
+
+
+def _build_profile_source_text() -> str:
+    """Aggregate all PROFILE text into a single searchable string."""
+    parts = []
+    for p in PROFILE.get("projects", []):
+        parts.append(p.get("description", ""))
+        parts.append(" ".join(p.get("tech", [])))
+    for e in PROFILE.get("experience", []):
+        for v in e.values():
+            if isinstance(v, str):
+                parts.append(v)
+    for cat_skills in PROFILE.get("skills", {}).values():
+        parts.extend(cat_skills)
+    return " ".join(parts).lower()
+
+
+def _check_ungrounded_claims(letter_body: str) -> list[str]:
+    """Detect vague skill-practice claims in the letter that have no
+    grounding in the candidate's actual profile data."""
+    issues = []
+    profile_text = _build_profile_source_text()
+
+    for category, cfg in _UNGROUNDED_CLAIM_PATTERNS.items():
+        # Check if the letter makes a vague claim in this category
+        claim_found = False
+        for pattern in cfg["vague_phrases"]:
+            if re.search(pattern, letter_body, re.IGNORECASE):
+                claim_found = True
+                break
+        if not claim_found:
+            continue
+
+        # Check if the profile has ANY grounding keyword for this category
+        has_grounding = any(
+            kw in profile_text for kw in cfg["grounding_keywords"]
+        )
+        if not has_grounding:
+            issues.append(f"ungrounded_claim:{category}")
+
+    return issues
+
+
 def _validate_letter(letter: str, job) -> dict:
     """Run deterministic checks on a cover letter. Returns
     {"issues": [...], "repaired_letter": str}."""
@@ -527,6 +605,9 @@ def _validate_letter(letter: str, job) -> dict:
         if raw_digits and raw_digits not in source_text.lower():
             issues.append(f"unverified_number:{match.strip()}")
 
+    # --- f. UNGROUNDED CLAIM CHECK (body only, not signature) ---
+    issues.extend(_check_ungrounded_claims(letter_body))
+
     return {"issues": issues, "repaired_letter": repaired}
 
 
@@ -588,7 +669,7 @@ class GenerateCoverLetter(BaseAPIView):
 
         hard_issues = [
             i for i in all_issues
-            if i.startswith(("forbidden_skill:", "misattribution:", "unverified_number:"))
+            if i.startswith(("forbidden_skill:", "misattribution:", "unverified_number:", "ungrounded_claim:"))
         ]
 
         # --- Retry once if hard issues found ---
@@ -597,7 +678,9 @@ class GenerateCoverLetter(BaseAPIView):
                 f"Your previous attempt had these accuracy problems: "
                 f"{'; '.join(hard_issues)}. Fix each one specifically in this attempt. "
                 f"Do not repeat these errors. Remove any forbidden skills, correct "
-                f"project attributions, and remove or replace any unverified numbers."
+                f"project attributions, remove or replace any unverified numbers, "
+                f"and remove any vague skill claims that are not backed by a specific "
+                f"tool, framework, or technique in the candidate's profile."
             )
             retry_system = system_prompt + "\n\n" + retry_prompt
             retry_letter, retry_error = generate_with_llm(
@@ -614,7 +697,7 @@ class GenerateCoverLetter(BaseAPIView):
                 retry_validation = _validate_letter(retry_letter, job)
                 retry_hard = [
                     i for i in retry_validation["issues"]
-                    if i.startswith(("forbidden_skill:", "misattribution:", "unverified_number:"))
+                    if i.startswith(("forbidden_skill:", "misattribution:", "unverified_number:", "ungrounded_claim:"))
                 ]
 
                 if retry_hard:
