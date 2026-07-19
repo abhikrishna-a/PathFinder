@@ -1,4 +1,4 @@
-import type { PaginatedResponse, Job, JobDetail, Application } from "../types";
+import type { PaginatedResponse, Job, JobDetail, Application, SecurityStatus, ResumeStatus, ApplyProgress } from "../types";
 
 const BASE = "/api/v1";
 
@@ -17,11 +17,36 @@ export const api = {
     detail(id: number): Promise<JobDetail> {
       return get(`/jobs/${id}/`);
     },
+    apply(id: number): Promise<Record<string, unknown>> {
+      return fetch(`${BASE}/jobs/${id}/apply/`, { method: "POST" }).then((r) => {
+        if (!r.ok) throw new Error(`API error: ${r.status}`);
+        return r.json();
+      });
+    },
   },
   applications: {
     list(params: Record<string, string> = {}): Promise<PaginatedResponse<Application>> {
       const qs = new URLSearchParams(params).toString();
       return get(`/applications/${qs ? `?${qs}` : ""}`);
+    },
+  },
+  applyQueue: {
+    list(params: Record<string, string> = {}): Promise<PaginatedResponse<Job>> {
+      const qs = new URLSearchParams(params).toString();
+      return get(`/apply-queue/${qs ? `?${qs}` : ""}`);
+    },
+    applyBatch(jobIds: number[]): Promise<Record<string, unknown>> {
+      return fetch(`${BASE}/apply-queue/batch/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job_ids: jobIds }),
+      }).then((r) => {
+        if (!r.ok) throw new Error(`API error: ${r.status}`);
+        return r.json();
+      });
+    },
+    progress(): Promise<ApplyProgress> {
+      return get("/apply-queue/progress/");
     },
   },
   stats: {
@@ -48,6 +73,45 @@ export const api = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profile: data }),
       }).then((r) => {
+        if (!r.ok) throw new Error(`API error: ${r.status}`);
+        return r.json();
+      });
+    },
+    uploadResume(file: File): Promise<Record<string, unknown>> {
+      const form = new FormData();
+      form.append("resume", file);
+      return fetch(`${BASE}/profile/resume/`, {
+        method: "POST",
+        body: form,
+      }).then((r) => {
+        if (!r.ok) throw new Error(`API error: ${r.status}`);
+        return r.json();
+      });
+    },
+    deleteResume(): Promise<Record<string, unknown>> {
+      return fetch(`${BASE}/profile/resume/`, { method: "DELETE" }).then((r) => {
+        if (!r.ok) throw new Error(`API error: ${r.status}`);
+        return r.json();
+      });
+    },
+    getResume(): Promise<ResumeStatus> {
+      return get("/profile/resume/");
+    },
+    getSecurity(): Promise<SecurityStatus> {
+      return get("/profile/security/");
+    },
+    saveSecurity(senderEmail: string, password: string): Promise<Record<string, unknown>> {
+      return fetch(`${BASE}/profile/security/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sender_email: senderEmail, password }),
+      }).then((r) => {
+        if (!r.ok) throw new Error(`API error: ${r.status}`);
+        return r.json();
+      });
+    },
+    deleteSecurity(): Promise<Record<string, unknown>> {
+      return fetch(`${BASE}/profile/security/`, { method: "DELETE" }).then((r) => {
         if (!r.ok) throw new Error(`API error: ${r.status}`);
         return r.json();
       });
