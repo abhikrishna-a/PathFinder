@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
+import { FetcherProvider, useFetcher } from "./FetcherProgress";
 import Overview from "./pages/Overview";
 import Jobs from "./pages/Jobs";
 import JobDetail from "./pages/JobDetail";
@@ -84,26 +85,51 @@ function Sidebar() {
   );
 }
 
+function FetcherBanner() {
+  const { progress } = useFetcher();
+  if (!progress) return null;
+
+  return (
+    <div className="fetcher-banner">
+      <div className="fetcher-banner-inner">
+        <div className="fetcher-banner-bar">
+          <div className="fetcher-banner-bar-fill" style={{ width: (progress.running ? progress.percent : 100) + "%" }} />
+        </div>
+        <div className="fetcher-banner-meta">
+          <span className="fetcher-banner-step">{progress.message}</span>
+          <span className="fetcher-banner-pct">
+            {progress.running ? progress.percent + "%" : "Done"}
+            {progress.elapsed_seconds ? ` \u00b7 ${progress.elapsed_seconds}s` : ""}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <Sidebar />
-      <div className="app-content">
-        <main>
-          <Routes>
-            <Route path="/" element={<Overview />} />
-            <Route path="/jobs" element={<Jobs />} />
-            <Route path="/jobs/:id" element={<JobDetail />} />
-            <Route path="/applications" element={<Applications />} />
-            <Route path="/web-apply" element={<WebApply />} />
-            <Route path="/missing-emails" element={<MissingEmails />} />
-            <Route path="/stats/skills" element={<SkillStats />} />
-            <Route path="/stats/companies" element={<CompanyStats />} />
-            <Route path="/stats/locations" element={<LocationStats />} />
-            <Route path="/profile" element={<Profile />} />
-          </Routes>
-        </main>
-      </div>
+      <FetcherProvider>
+        <Sidebar />
+        <div className="app-content">
+          <FetcherBanner />
+          <main>
+            <Routes>
+              <Route path="/" element={<Overview />} />
+              <Route path="/jobs" element={<Jobs />} />
+              <Route path="/jobs/:id" element={<JobDetail />} />
+              <Route path="/applications" element={<Applications />} />
+              <Route path="/web-apply" element={<WebApply />} />
+              <Route path="/missing-emails" element={<MissingEmails />} />
+              <Route path="/stats/skills" element={<SkillStats />} />
+              <Route path="/stats/companies" element={<CompanyStats />} />
+              <Route path="/stats/locations" element={<LocationStats />} />
+              <Route path="/profile" element={<Profile />} />
+            </Routes>
+          </main>
+        </div>
+      </FetcherProvider>
     </BrowserRouter>
   );
 }
