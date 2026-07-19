@@ -22,13 +22,44 @@ const SORT_OPTIONS = [
   { value: "salary", label: "Salary (Low to High)" },
 ];
 
-function statusBadge(label: string) {
-  return label === "all" ? "Status" : label.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+function Dropdown({ label, value, options, open, onToggle, onSelect }: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  open: boolean;
+  onToggle: () => void;
+  onSelect: (v: string) => void;
+}) {
+  return (
+    <div className="jb-filter">
+      <button className={"jb-filter-btn" + (value !== "all" ? " active" : "")} onClick={onToggle}>
+        {value === "all" ? label : options.find(o => o.value === value)?.label || label}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      <div className={"jb-dropdown" + (open ? " open" : "")}>
+        {options.map((o) => (
+          <button key={o.value} className={"jb-dropdown-item" + (value === o.value ? " active" : "")} onClick={() => onSelect(o.value)}>
+            <svg className="jb-dropdown-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
-function salaryLabel(value: string) {
-  const f = SALARIES.find((s) => s.value === value);
-  return f ? f.label : "Salary";
+function ScoreBadge({ score }: { score: number }) {
+  if (score >= 50) return <span className="jb-score jb-score-high">{score}%</span>;
+  if (score >= 30) return <span className="jb-score jb-score-med">{score}%</span>;
+  return <span className="jb-score jb-score-low">{score}%</span>;
+}
+
+function StatusChip({ status }: { status: string }) {
+  return <span className={"jb-chip jb-chip-" + status}>{status.replace("_", " ")}</span>;
 }
 
 export default function Jobs() {
@@ -38,7 +69,8 @@ export default function Jobs() {
   const salary = searchParams.get("salary") || "all";
   const sort = searchParams.get("sort") || "-match_score";
   const page = searchParams.get("page") || "1";
-  const [searchQuery, setSearchQuery] = useState("");
+  const searchQuery = searchParams.get("search") || "";
+  const [searchInput, setSearchInput] = useState(searchQuery);
 
   const [data, setData] = useState<PaginatedResponse<Job> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,7 +82,7 @@ export default function Jobs() {
       setData(d);
       setLoading(false);
     });
-  }, [status, location, salary, sort, page]);
+  }, [status, location, salary, sort, page, searchQuery]);
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(searchParams);
@@ -62,161 +94,214 @@ export default function Jobs() {
 
   function clearAll() {
     setSearchParams({});
+    setSearchInput("");
     setOpenDropdown(null);
   }
 
-  const hasFilters = status !== "all" || location !== "all" || salary !== "all";
+  function handleSearch() {
+    setParam("search", searchInput);
+  }
 
-  const sortLabel = SORT_OPTIONS.find((s) => s.value === sort)?.label || "Sort";
+  const hasFilters = status !== "all" || location !== "all" || salary !== "all" || searchQuery !== "";
 
   return (
     <>
       <div className="page-header">
-        <h2>All Jobs <span className="count">({data?.count ?? "..."})</span></h2>
-      </div>
-
-      <div className="filter-bar">
-        <div className="search-box">
-          <svg className="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
-          <input type="text" placeholder="Search by title, company, or skill..." value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") setParam("search", searchQuery); }} />
-        </div>
-
-        <div className="filter-row">
-          {/* Status */}
-          <div className="filter-pill">
-            <button className={"filter-pill-btn" + (status !== "all" ? " has-value" : "")}
-              onClick={() => setOpenDropdown(openDropdown === "status" ? null : "status")}>
-              {statusBadge(status)}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-            </button>
-            <div className={"dropdown-menu" + (openDropdown === "status" ? " open" : "")}>
-              {STATUSES.map((s) => (
-                <button key={s} className={"dropdown-item" + (status === s ? " active" : "")}
-                  onClick={() => setParam("status", s)}>
-                  <svg className="dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                  {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1).replace("_", " ")}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Location */}
-          <div className="filter-pill">
-            <button className={"filter-pill-btn" + (location !== "all" ? " has-value" : "")}
-              onClick={() => setOpenDropdown(openDropdown === "location" ? null : "location")}>
-              {location === "all" ? "Location" : location.charAt(0).toUpperCase() + location.slice(1)}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-            </button>
-            <div className={"dropdown-menu" + (openDropdown === "location" ? " open" : "")}>
-              {LOCATIONS.map((l) => (
-                <button key={l} className={"dropdown-item" + (location === l ? " active" : "")}
-                  onClick={() => setParam("location", l)}>
-                  <svg className="dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                  {l === "all" ? "All" : l.charAt(0).toUpperCase() + l.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Salary */}
-          <div className="filter-pill">
-            <button className={"filter-pill-btn" + (salary !== "all" ? " has-value" : "")}
-              onClick={() => setOpenDropdown(openDropdown === "salary" ? null : "salary")}>
-              {salaryLabel(salary)}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-            </button>
-            <div className={"dropdown-menu" + (openDropdown === "salary" ? " open" : "")}>
-              {SALARIES.map((s) => (
-                <button key={s.value} className={"dropdown-item" + (salary === s.value ? " active" : "")}
-                  onClick={() => setParam("salary", s.value)}>
-                  <svg className="dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Clear */}
-          <button className={"filter-clear" + (hasFilters ? " visible" : "")} onClick={clearAll}>Clear all</button>
-
-          {/* Sort */}
-          <div className="filter-pill" style={{ marginLeft: "auto" }}>
-            <button className="filter-pill-btn"
-              onClick={() => setOpenDropdown(openDropdown === "sort" ? null : "sort")}>
-              {sortLabel}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-            </button>
-            <div className={"dropdown-menu dropdown-menu-right" + (openDropdown === "sort" ? " open" : "")}>
-              {SORT_OPTIONS.map((s) => (
-                <button key={s.value} className={"dropdown-item" + (sort === s.value ? " active" : "")}
-                  onClick={() => setParam("sort", s.value)}>
-                  <svg className="dropdown-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <span className="filter-result-count">{data?.count ?? 0} results</span>
+        <div>
+          <h2>Jobs</h2>
+          <p className="page-subtitle">{data?.count?.toLocaleString() ?? "..."} jobs found</p>
         </div>
       </div>
 
-      {/* Job cards */}
-      <div className="job-list">
-        {loading && <div className="empty-guidance"><h3>Loading...</h3></div>}
+      {/* Search + Filters */}
+      <div className="jb-toolbar">
+        <div className="jb-search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search by title, company, or skill..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
+          />
+          {searchInput && (
+            <button className="jb-search-clear" onClick={() => { setSearchInput(""); setParam("search", ""); }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        <div className="jb-filters">
+          <Dropdown
+            label="Status"
+            value={status}
+            options={STATUSES.map(s => ({ value: s, label: s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1).replace("_", " ") }))}
+            open={openDropdown === "status"}
+            onToggle={() => setOpenDropdown(openDropdown === "status" ? null : "status")}
+            onSelect={(v) => setParam("status", v)}
+          />
+          <Dropdown
+            label="Location"
+            value={location}
+            options={LOCATIONS.map(l => ({ value: l, label: l === "all" ? "All" : l.charAt(0).toUpperCase() + l.slice(1) }))}
+            open={openDropdown === "location"}
+            onToggle={() => setOpenDropdown(openDropdown === "location" ? null : "location")}
+            onSelect={(v) => setParam("location", v)}
+          />
+          <Dropdown
+            label="Salary"
+            value={salary}
+            options={SALARIES}
+            open={openDropdown === "salary"}
+            onToggle={() => setOpenDropdown(openDropdown === "salary" ? null : "salary")}
+            onSelect={(v) => setParam("salary", v)}
+          />
+
+          {hasFilters && (
+            <button className="jb-clear" onClick={clearAll}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+              Clear
+            </button>
+          )}
+
+          <div className="jb-filter-spacer" />
+
+          <Dropdown
+            label="Sort"
+            value={sort}
+            options={SORT_OPTIONS}
+            open={openDropdown === "sort"}
+            onToggle={() => setOpenDropdown(openDropdown === "sort" ? null : "sort")}
+            onSelect={(v) => setParam("sort", v)}
+          />
+        </div>
+      </div>
+
+      {/* Job List */}
+      <div className="jb-list">
+        {loading && (
+          <>
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="jb-card skeleton">
+                <div className="jb-card-left">
+                  <div className="skeleton-score" />
+                  <div className="skeleton-lines">
+                    <div className="skeleton-line w60" />
+                    <div className="skeleton-line w40" />
+                  </div>
+                </div>
+                <div className="skeleton-tags">
+                  <div className="skeleton-tag" />
+                  <div className="skeleton-tag" />
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
         {!loading && data?.results.length === 0 && (
-          <div className="empty-guidance">
-            <div className="empty-icon">🔍</div>
+          <div className="jb-empty">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
             <h3>No jobs found</h3>
             <p>Try adjusting your filters or search query.</p>
           </div>
         )}
+
         {!loading && data?.results.map((job) => (
-          <div key={job.id} className="job-card fade-in" data-title={job.title.toLowerCase()} data-company={job.company.toLowerCase()}>
-            <div className="job-card-header">
-              <span className={"score-badge " + (job.match_score >= 50 ? "high" : job.match_score >= 30 ? "med" : "low")}>
-                {job.match_score}%
-              </span>
-              <div>
-                <Link to={`/jobs/${job.id}`} className="job-title">{job.title}</Link>
-                <div className="job-meta">{job.company} &middot; {job.location} &middot; {job.source}</div>
+          <Link key={job.id} to={`/jobs/${job.id}`} className="jb-card">
+            <div className="jb-card-top">
+              <ScoreBadge score={job.match_score} />
+              <div className="jb-card-info">
+                <span className="jb-card-title">{job.title}</span>
+                <span className="jb-card-meta">
+                  {job.company}
+                  {job.location && <><span className="jb-dot">·</span>{job.location}</>}
+                  {job.source && <><span className="jb-dot">·</span>{job.source}</>}
+                </span>
               </div>
-              <span className={"status-pill " + job.status}>{job.status.replace("_", " ")}</span>
+              <StatusChip status={job.status} />
             </div>
+
             {job.matched_skills?.length > 0 && (
-              <div className="job-skills">
-                {job.matched_skills.map((skill) => (
-                  <span key={skill} className="skill-tag">{skill}</span>
+              <div className="jb-card-skills">
+                {job.matched_skills.slice(0, 6).map((skill) => (
+                  <span key={skill} className="jb-skill">{skill}</span>
                 ))}
+                {job.matched_skills.length > 6 && (
+                  <span className="jb-skill-more">+{job.matched_skills.length - 6}</span>
+                )}
               </div>
             )}
-            <div className="job-footer">
-              <span>Posted: {job.posted_date || "N/A"}</span>
-              {job.salary_display && <span className="job-salary">{job.salary_display}</span>}
-              <span>Fetched: {new Date(job.fetched_date).toLocaleDateString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+
+            <div className="jb-card-bottom">
+              <span className="jb-card-date">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                {job.posted_date || "N/A"}
+              </span>
+              {job.salary_display && (
+                <span className="jb-card-salary">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="1" x2="12" y2="23" />
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                  </svg>
+                  {job.salary_display}
+                </span>
+              )}
+              <span className="jb-card-fetched">
+                Fetched {new Date(job.fetched_date).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}
+              </span>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 
       {/* Pagination */}
       {data && data.total_pages > 1 && (
-        <div className="pagination">
-          {data.previous && (
-            <button className="btn" onClick={() => setParam("page", String(Number(page) - 1))}>&laquo; Previous</button>
-          )}
-          <span className="page-info">Page {data.page} of {data.total_pages}</span>
-          {data.next && (
-            <button className="btn" onClick={() => setParam("page", String(Number(page) + 1))}>Next &raquo;</button>
-          )}
+        <div className="jb-pagination">
+          <button
+            className="jb-page-btn"
+            disabled={!data.previous}
+            onClick={() => setParam("page", String(Number(page) - 1))}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            Previous
+          </button>
+          <span className="jb-page-info">Page {data.page} of {data.total_pages}</span>
+          <button
+            className="jb-page-btn"
+            disabled={!data.next}
+            onClick={() => setParam("page", String(Number(page) + 1))}
+          >
+            Next
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
         </div>
       )}
 
       {/* Click-outside close */}
       {openDropdown && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 99 }} onClick={() => setOpenDropdown(null)} />
+        <div className="jb-overlay" onClick={() => setOpenDropdown(null)} />
       )}
     </>
   );
