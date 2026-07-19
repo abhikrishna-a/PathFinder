@@ -18,6 +18,47 @@ def _clean_cover_letter(text: str) -> str:
     return text.strip()
 
 
+def _compute_skill_gap(job) -> tuple[str, str]:
+    """Compare job requirements against candidate profile.
+    Returns (candidate_has, candidate_missing) as comma-separated strings."""
+    candidate_skills_lower = set()
+    for cat_skills in PROFILE.get("skills", {}).values():
+        for s in cat_skills:
+            candidate_skills_lower.add(s.lower())
+
+    has_set = set()
+    for s in (job.matched_skills or []):
+        has_set.add(s)
+
+    missing_set = set()
+    for s in (job.skill_gaps or []):
+        missing_set.add(s)
+
+    desc = (job.description or "").lower()
+    extra_keywords = {
+        "rust", "go", "golang", "java", "scala", "ruby", "php", "c++",
+        "graphql", "grpc", "mongodb", "cassandra", "neo4j", "elasticsearch",
+        "kubernetes", "k8s", "terraform", "gcp", "azure", "flutter",
+        "swift", "kotlin", "selenium", "cypress", "playwright",
+        "kafka", "rabbitmq", "airflow", "spark", "hadoop",
+        "tableau", "power bi", "blockchain", "web3",
+    }
+    for kw in extra_keywords:
+        if kw in desc and kw not in candidate_skills_lower:
+            display = kw.upper() if kw in ("go", "golang", "c++") else kw.title()
+            if kw == "k8s":
+                display = "Kubernetes"
+            missing_set.add(display)
+
+    has_list = sorted(has_set, key=str.lower)
+    missing_list = sorted(missing_set, key=str.lower)
+
+    has_text = ", ".join(has_list) if has_list else "None"
+    missing_text = ", ".join(missing_list) if missing_list else "None -- candidate matches all listed requirements"
+
+    return has_text, missing_text
+
+
 def _build_system_prompt() -> str:
     name = PROFILE.get("name", "Developer")
     phone = PROFILE.get("phone", "")
@@ -46,26 +87,34 @@ OUTPUT RULES:
 - Plain text only, ATS-friendly.
 
 STRUCTURE (4-5 short paragraphs, under 180 words body):
-1. Opening: Reference something SPECIFIC from the job description — a named technology they use, the domain they operate in, or a problem they describe. Do NOT open with "I am applying for the {{title}} position at {{company}}" every time. Vary your opening sentence.
+1. Opening: Reference something SPECIFIC from the job description -- a named technology they use, the domain they operate in, or a problem they describe. Do NOT open with "I am applying for the {{title}} position at {{company}}" every time. Vary your opening sentence.
 2. Body: Connect your most relevant project(s) and skills to what this specific job needs. Choose which project(s) to highlight based on relevance to THIS job, not a fixed order.
-3. If the JD mentions Docker, AWS, CI/CD, Kubernetes, or DevOps — naturally weave in relevant DevOps experience. If it mentions AI/ML/LLM — naturally weave in relevant AI experience. Only mention what is relevant.
-4. Closing: A brief, confident close. Vary it between letters — do NOT always use the same closing sentence.
+3. If the JD mentions Docker, AWS, CI/CD, Kubernetes, or DevOps -- naturally weave in relevant DevOps experience. If it mentions AI/ML/LLM -- naturally weave in relevant AI experience. Only mention what is relevant.
+4. Closing: A brief, confident close. Vary it between letters -- do NOT always use the same closing sentence.
 
 BANNED:
-- "I am genuinely interested in contributing to X and happy to discuss how I can add value from day one" — never use this closer.
-- "I am writing to express my interest in the X position" — never use this opener.
-- "Dear Hiring Manager at {{company}}" — always use exactly "Dear Hiring Manager," and let the company name appear naturally within the first paragraph.
+- "I am genuinely interested in contributing to X and happy to discuss how I can add value from day one" -- never use this closer.
+- "I am writing to express my interest in the X position" -- never use this opener.
+- "Dear Hiring Manager at {{company}}" -- always use exactly "Dear Hiring Manager," and let the company name appear naturally within the first paragraph.
 - Any sentence that could apply to literally any job without changes.
 
 NO REPETITION:
-- Do not repeat any phrase, sentence fragment, or distinctive wording from the job description more than once in the entire letter. If you reference a JD detail (a technology, a responsibility, a stated need) in one paragraph, do not paraphrase or restate that same detail again later — move on to a new point instead.
+- Do not repeat any phrase, sentence fragment, or distinctive wording from the job description more than once in the entire letter. If you reference a JD detail (a technology, a responsibility, a stated need) in one paragraph, do not paraphrase or restate that same detail again later -- move on to a new point instead.
 - Before finalizing, mentally check: does any sentence in paragraph 2 or later restate an idea already covered in paragraph 1? If so, cut it or replace it with a new point.
-- The closing paragraph must reference something specific and different from what was already said — not a generic restatement like "I am looking forward to discussing how my expertise can benefit {{company}}." Tie it to a concrete next step or a specific value point not yet mentioned.
+- The closing paragraph must reference something specific and different from what was already said -- not a generic restatement like "I am looking forward to discussing how my expertise can benefit {{company}}." Tie it to a concrete next step or a specific value point not yet mentioned.
 
 ACRONYM RULES:
 - Never expand, define, or explain an acronym or technical term unless the exact expansion is explicitly given in the job description or candidate profile provided to you.
 - If a term appears only as an acronym (e.g. RAG, LLM, CI/CD, DRF, RBAC), use it as-is without spelling out what it stands for.
 - Do not guess expansions. Incorrect expansions (e.g. inventing a wrong full form for an acronym) are worse than using the acronym alone.
+
+SKILL GAP RULE -- MANDATORY, NON-NEGOTIABLE:
+You are given two lists: SKILLS THE CANDIDATE HAS THAT MATCH THIS JOB, and SKILLS THIS JOB REQUIRES THAT THE CANDIDATE DOES NOT HAVE.
+- You may ONLY write about skills from the first list as things the candidate has, uses, or has experience with.
+- Every skill name in the second list is FORBIDDEN to appear anywhere in your output, in any form -- not as something the candidate has, not as something that 'aligns with' their experience, not quoted from the job description, not implied, not mentioned as a learning goal. Treat each name in that list as a word you are not allowed to write.
+- Before you finalize your response, re-read it and check: does any sentence contain a word from the missing-skills list? If yes, rewrite that sentence to remove it entirely and replace it with a point about a skill from the has-list instead.
+- Do not summarize or paraphrase the job's full requirement line (e.g. 'backend services in X, Y, and Z') if it contains any missing skill -- instead reference only the specific matching skills from that same line, worded as your own list, not the job's list.
+- This rule overrides any instinct to sound comprehensive or to mirror the job description's phrasing. Precision about actual skills matters more than matching every word of the JD.
 
 SIGNATURE (append exactly as-is at the end of the letter):
 {signature}"""
@@ -83,13 +132,9 @@ def _build_user_prompt(job) -> str:
         e = experience[0]
         exp_text = f"{e.get('role', role)} at {e.get('company', 'Unknown')}, {e.get('location', location)}"
 
-    all_skills = []
-    for cat_skills in PROFILE.get("skills", {}).values():
-        all_skills.extend(cat_skills)
-    core_skills = ", ".join(all_skills[:10])
-
     desc = (job.description or "")[:3000]
-    matched = ", ".join(job.matched_skills[:10]) if job.matched_skills else "Python, Django"
+
+    candidate_has, candidate_missing = _compute_skill_gap(job)
 
     projects_text = ""
     for p in PROFILE.get("projects", []):
@@ -104,7 +149,6 @@ JOB:
 Company: {job.company}
 Title: {job.title}
 Location: {job.location or 'Not specified'}
-Matched skills: {matched}
 
 JOB DESCRIPTION:
 {desc}
@@ -112,12 +156,15 @@ JOB DESCRIPTION:
 CANDIDATE:
 Name: {name}
 Role: {role}
-Experience: {experience_years} year(s) — {exp_text}
-Core skills: {core_skills}
+Experience: {experience_years} year(s) -- {exp_text}
+
+SKILLS THE CANDIDATE HAS THAT MATCH THIS JOB: {candidate_has}
+SKILLS THIS JOB REQUIRES THAT THE CANDIDATE DOES NOT HAVE: {candidate_missing}
 
 PROJECTS:
 {projects_text}
 INSTRUCTIONS:
+- You may ONLY write about skills from the has-list above. The missing-skills list is FORBIDDEN in your output.
 - Identify 1-2 specific details from the job description above and reference at least one directly in your opening.
 - Choose which project(s) to lead with based on relevance to THIS job's matched skills, not a fixed order.
 - Keep it under 180 words in the body (excluding signature).
