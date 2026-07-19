@@ -7,3 +7,5 @@ from .profile import UserProfile
 from .apply_queue import ApplyQueueList, ApplyToJob, BatchApply
 from .resume import ProfileResume
 from .security import ProfileSecurity
+from .ai_settings import ProfileAI
+from .cover_letter import GenerateCoverLetter

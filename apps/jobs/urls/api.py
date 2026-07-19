@@ -6,7 +6,8 @@ from apps.jobs.views import (
     OverviewStats, SkillStats, CompanyStats, LocationStats,
     WebApplyList, MissingEmailsList, UserProfile,
     ApplyQueueList, ApplyToJob, BatchApply,
-    ProfileResume, ProfileSecurity,
+    ProfileResume, ProfileSecurity, ProfileAI,
+    GenerateCoverLetter,
 )
 from apps.jobs.views.fetcher import run_fetcher, fetcher_status
 from apps.jobs.views.apply_queue import apply_progress
@@ -24,6 +25,7 @@ api_urlpatterns = [
     path("apply-queue/batch/", BatchApply.as_view(), name="api_batch_apply"),
     path("apply-queue/progress/", apply_progress, name="api_apply_progress"),
     path("jobs/<int:job_id>/apply/", ApplyToJob.as_view(), name="api_apply_to_job"),
+    path("jobs/<int:job_id>/generate-cover-letter/", GenerateCoverLetter.as_view(), name="api_generate_cover_letter"),
 
     # Stats
     path("stats/overview/", OverviewStats.as_view(), name="api_overview"),
@@ -35,6 +37,7 @@ api_urlpatterns = [
     path("profile/", UserProfile.as_view(), name="api_profile"),
     path("profile/resume/", ProfileResume.as_view(), name="api_profile_resume"),
     path("profile/security/", ProfileSecurity.as_view(), name="api_profile_security"),
+    path("profile/ai/", ProfileAI.as_view(), name="api_profile_ai"),
 
     # Other
     path("web-apply/", WebApplyList.as_view(), name="api_web_apply"),
