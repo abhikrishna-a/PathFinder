@@ -14,6 +14,7 @@ DEBUG = False
 ALLOWED_HOSTS: list[str] = []
 
 INSTALLED_APPS = [
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -21,6 +22,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.humanize",
+    "channels",
     "rest_framework",
     "apps.core.apps.CoreConfig",
     "apps.jobs.apps.JobsConfig",
@@ -67,6 +69,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "config.wsgi.application"
+ASGI_APPLICATION = "config.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}
 
 DATABASES = {
     "default": {
