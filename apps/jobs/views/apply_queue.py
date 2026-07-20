@@ -2,6 +2,7 @@ import logging
 import time
 import threading
 
+from django.db.models import Exists, OuterRef, Value
 from django.http import JsonResponse
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -17,10 +18,11 @@ _apply_progress = {"running": False, "total": 0, "done": 0, "succeeded": 0, "fai
 
 class ApplyQueueList(BaseAPIView):
     def get(self, request):
-        applied_job_ids = set(Application.objects.values_list("job_id", flat=True))
+        failed_app = Application.objects.filter(job=OuterRef("pk"), status="failed")
         jobs = (
             Job.objects.exclude(status="ignored")
-            .exclude(id__in=applied_job_ids)
+            .annotate(has_failed_app=Exists(failed_app))
+            .exclude(has_failed_app=False, application__isnull=False)
             .filter(apply_email__isnull=False)
             .exclude(apply_email="")
             .order_by("-match_score")
@@ -38,7 +40,8 @@ class ApplyToJob(BaseAPIView):
         except Job.DoesNotExist:
             return self.error("Job not found", status.HTTP_404_NOT_FOUND)
 
-        if Application.objects.filter(job=job).exists():
+        existing = Application.objects.filter(job=job).first()
+        if existing and existing.status != "failed":
             return self.error("Already applied to this job", status.HTTP_409_CONFLICT)
 
         if not job.apply_email:
@@ -105,7 +108,8 @@ def _batch_apply_thread(job_ids: list[int]):
             job = Job.objects.get(pk=job_id)
             _apply_progress["current"] = f"{job.title} at {job.company}"
 
-            if Application.objects.filter(job=job).exists():
+            existing = Application.objects.filter(job=job).first()
+            if existing and existing.status != "failed":
                 _apply_progress["done"] += 1
                 continue
 

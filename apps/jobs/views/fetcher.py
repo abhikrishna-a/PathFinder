@@ -73,7 +73,6 @@ def _run_fetcher_background():
             update_daily_stats, _extract_salary_from_text,
         )
         from apps.jobs.models import Application, RawJob, JobEvent, Job
-        from config.settings import MATCH_THRESHOLD_APPLY
 
         _fetcher_running = True
 
@@ -146,17 +145,17 @@ def _run_fetcher_background():
             .values_list("job__uid", flat=True)
         )
 
-        apply_candidates = [
+        email_candidates = [
             j for j in all_jobs
-            if j["match_score"] >= MATCH_THRESHOLD_APPLY
-            and j["status"] != "ignored"
+            if j["status"] != "ignored"
             and j["uid"] not in already_applied_uids
+            and j.get("apply_url")
         ]
 
-        if apply_candidates:
-            _update_progress("email", f"Looking up company emails for {len(apply_candidates)} candidates...", 65,
-                             {"candidates": len(apply_candidates)})
-            apply_candidates = enrich_jobs_with_emails(apply_candidates)
+        if email_candidates:
+            _update_progress("email", f"Looking up company emails for {len(email_candidates)} candidates...", 65,
+                             {"candidates": len(email_candidates)})
+            enrich_jobs_with_emails(email_candidates)
 
         salary_candidates = [
             j for j in all_jobs
