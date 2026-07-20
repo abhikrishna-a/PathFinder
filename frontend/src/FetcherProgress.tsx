@@ -36,71 +36,57 @@ const PLACEHOLDER: FetcherProgress = {
 
 export function FetcherProvider({ children }: { children: React.ReactNode }) {
   const [progress, setProgress] = useState<FetcherProgress | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const aliveRef = useRef(true);
 
   useEffect(() => {
     aliveRef.current = true;
-    connectWS();
     return () => {
       aliveRef.current = false;
-      if (wsRef.current) wsRef.current.close();
+      stopPolling();
     };
   }, []);
 
-  function connectWS() {
-    if (!aliveRef.current) return;
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${proto}//${location.host}/ws/fetcher/progress/`);
-    wsRef.current = ws;
+  function stopPolling() {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }
 
-    ws.onopen = () => {
-      console.log("[WS] Connected");
-    };
-
-    ws.onmessage = (e) => {
-      const msg = JSON.parse(e.data);
-      if (msg.running) {
-        setProgress({
-          running: true,
-          percent: msg.percent || 0,
-          message: msg.message || "Working...",
-          step: msg.step || "",
-          details: msg.details || {},
-          elapsed_seconds: msg.elapsed_seconds,
-        });
-      } else {
-        setProgress((prev) => {
-          if (!prev?.running) return null;
-          return {
-            running: false,
-            percent: 100,
-            message: msg.message || "Done!",
-            step: "done",
-            details: msg.details || prev.details,
-            elapsed_seconds: msg.elapsed_seconds,
-          };
-        });
-        setTimeout(() => setProgress(null), 5000);
+  function startPolling() {
+    stopPolling();
+    pollRef.current = setInterval(async () => {
+      if (!aliveRef.current) return;
+      try {
+        const data = await api.fetcher.status();
+        const p: FetcherProgress = {
+          running: !!data.running,
+          percent: Number(data.percent) || 0,
+          message: String(data.message || ""),
+          step: String(data.step || ""),
+          details: (data.details as Record<string, number>) || {},
+          elapsed_seconds: data.elapsed_seconds as number | undefined,
+        };
+        setProgress(p);
+        if (!p.running) {
+          stopPolling();
+          setTimeout(() => setProgress(null), 5000);
+        }
+      } catch {
+        // keep polling, next tick may work
       }
-    };
-
-    ws.onclose = () => {
-      console.log("[WS] Disconnected, reconnecting in 3s...");
-      setTimeout(() => connectWS(), 3000);
-    };
-
-    ws.onerror = () => {
-      ws.close();
-    };
+    }, 2000);
   }
 
   const startFetcher = useCallback(async () => {
     setProgress(PLACEHOLDER);
     try {
       await api.fetcher.run();
+      startPolling();
     } catch {
       setProgress(null);
+      stopPolling();
     }
   }, []);
 

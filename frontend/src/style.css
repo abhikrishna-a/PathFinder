@@ -6720,6 +6720,24 @@ textarea.form-control {
 
 .aq-card-title:hover { color: var(--accent); }
 
+.aq-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.aq-badge-failed {
+    background: rgba(234, 102, 102, 0.1);
+    color: #ea6666;
+}
+
 .aq-email-badge {
     display: inline-flex;
     align-items: center;
@@ -7114,6 +7132,24 @@ textarea.form-control {
     padding: 20px;
     background: var(--surface-2);
     border-radius: var(--radius-sm);
+}
+
+.jd-cover-fallback-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+}
+
+.jd-cover-fallback-info svg {
+    flex-shrink: 0;
+    color: var(--accent);
 }
 
 .jd-cover-hint {
