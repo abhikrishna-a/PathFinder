@@ -1060,6 +1060,7 @@ source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "channels" },
+    { name = "cryptography" },
     { name = "daphne" },
     { name = "django", version = "5.2.16", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "django", version = "6.0.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -1085,6 +1086,7 @@ dev = [
 requires-dist = [
     { name = "beautifulsoup4" },
     { name = "channels", specifier = ">=4.3.2" },
+    { name = "cryptography", specifier = ">=49.0.0" },
     { name = "daphne", specifier = ">=4.2.2" },
     { name = "django", specifier = ">=5.0" },
     { name = "django-cors-headers", specifier = ">=4.9.0" },

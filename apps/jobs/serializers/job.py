@@ -4,14 +4,19 @@ from apps.jobs.models import Job
 
 
 class JobSerializer(serializers.ModelSerializer):
+    has_failed_app = serializers.SerializerMethodField()
+
     class Meta:
         model = Job
         fields = [
             "id", "title", "company", "location", "source",
             "posted_date", "fetched_date", "match_score", "status",
             "matched_skills", "salary", "salary_display",
-            "job_url", "uid", "apply_email", "apply_url",
+            "job_url", "uid", "apply_email", "apply_url", "has_failed_app",
         ]
+
+    def get_has_failed_app(self, obj):
+        return getattr(obj, "has_failed_app", False)
 
 
 class JobDetailSerializer(serializers.ModelSerializer):

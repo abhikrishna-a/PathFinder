@@ -10,6 +10,7 @@ import SkillStats from "./pages/SkillStats";
 import CompanyStats from "./pages/CompanyStats";
 import LocationStats from "./pages/LocationStats";
 import Profile from "./pages/Profile";
+import ApplyQueue from "./pages/ApplyQueue";
 
 function Icon({ d, size = 18 }: { d: string; size?: number }) {
   return (
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { to: "/", label: "Overview", d: "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" },
   { to: "/jobs", label: "Jobs", d: "M20 7H4a1 1 0 0 0-1 1v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a1 1 0 0 0-1-1ZM16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" },
   { to: "/applications", label: "Applications", d: "M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" },
+  { to: "/apply-queue", label: "Apply Queue", d: "M22 2L11 13M22 2l-7 20-4-9-9-4 20-7zM16 2l6 6-6 6" },
   { to: "/web-apply", label: "Web Apply", d: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" },
   { to: "/missing-emails", label: "Missing", d: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" },
 ];
@@ -120,6 +122,7 @@ export default function App() {
               <Route path="/jobs" element={<Jobs />} />
               <Route path="/jobs/:id" element={<JobDetail />} />
               <Route path="/applications" element={<Applications />} />
+              <Route path="/apply-queue" element={<ApplyQueue />} />
               <Route path="/web-apply" element={<WebApply />} />
               <Route path="/missing-emails" element={<MissingEmails />} />
               <Route path="/stats/skills" element={<SkillStats />} />

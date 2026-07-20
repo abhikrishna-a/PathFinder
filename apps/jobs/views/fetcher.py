@@ -66,15 +66,13 @@ def _run_fetcher_background():
     try:
         from apps.jobs.fetchers import fetch_all_jobs
         from apps.jobs.matcher import match_all_jobs
-        from apps.jobs.applicant import apply_to_job
         from apps.jobs.services import (
             enrich_jobs_with_emails, enrich_jobs_with_salaries,
             is_company_email,
-            save_job, save_application, save_web_apply,
+            save_job,
             update_daily_stats, _extract_salary_from_text,
         )
         from apps.jobs.models import Application, RawJob, JobEvent, Job
-        from config.settings import MATCH_THRESHOLD_APPLY
 
         _fetcher_running = True
 
@@ -147,17 +145,17 @@ def _run_fetcher_background():
             .values_list("job__uid", flat=True)
         )
 
-        apply_candidates = [
+        email_candidates = [
             j for j in all_jobs
-            if j["match_score"] >= MATCH_THRESHOLD_APPLY
-            and j["status"] != "ignored"
+            if j["status"] != "ignored"
             and j["uid"] not in already_applied_uids
+            and j.get("apply_url")
         ]
 
-        if apply_candidates:
-            _update_progress("email", f"Looking up company emails for {len(apply_candidates)} candidates...", 65,
-                             {"candidates": len(apply_candidates)})
-            apply_candidates = enrich_jobs_with_emails(apply_candidates)
+        if email_candidates:
+            _update_progress("email", f"Looking up company emails for {len(email_candidates)} candidates...", 65,
+                             {"candidates": len(email_candidates)})
+            enrich_jobs_with_emails(email_candidates)
 
         salary_candidates = [
             j for j in all_jobs
@@ -173,11 +171,9 @@ def _run_fetcher_background():
                              {"salary_check": len(salary_candidates)})
             enrich_jobs_with_salaries(salary_candidates)
 
-        _update_progress("save", "Saving jobs and creating applications...", 85)
+        _update_progress("save", "Saving matched jobs...", 85)
 
-        applied = 0
-        web_applied = 0
-        failed_apply = 0
+        saved = 0
 
         for i, job_data in enumerate(all_jobs):
             if (i + 1) % 50 == 0:
@@ -207,44 +203,14 @@ def _run_fetcher_background():
             email = job_data.get("apply_email", "")
             if email and not is_company_email(email, job_data.get("company", "")):
                 job_data["apply_email"] = ""
-                email = ""
-
-            if email and job_data["match_score"] >= MATCH_THRESHOLD_APPLY:
-                result = apply_to_job(job_data)
-                old_status = job.status
-                job.status = "applied"
-                job.save()
-                JobEvent.objects.create(
-                    job=job, event_type="applied",
-                    old_status=old_status, new_status="applied",
-                    match_score=job_data.get("match_score", 0),
-                )
-                save_application(job, result)
-                if result["success"]:
-                    applied += 1
-                else:
-                    failed_apply += 1
-            elif not email and job_data.get("apply_url") and job_data["match_score"] >= MATCH_THRESHOLD_APPLY:
-                result = apply_to_job(job_data)
-                old_status = job.status
-                job.status = "web_apply"
-                job.save()
-                JobEvent.objects.create(
-                    job=job, event_type="web_apply",
-                    old_status=old_status, new_status="web_apply",
-                    match_score=job_data.get("match_score", 0),
-                )
-                save_web_apply(job, result)
-                web_applied += 1
+                job.apply_email = ""
+                job.save(update_fields=["apply_email"])
 
         _update_progress("stats", "Updating dashboard statistics...", 95)
         update_daily_stats()
 
-        _fetcher_progress["details"].update({
-            "applied": applied, "web_applied": web_applied, "failed": failed_apply,
-        })
         _update_progress("done",
-                         f"Done! {len(new_jobs)} new jobs, {matched} matched, {applied} applied, {web_applied} web applied.",
+                         f"Done! {len(new_jobs)} new jobs, {matched} matched. Ready for manual apply.",
                          100)
 
     except Exception as e:

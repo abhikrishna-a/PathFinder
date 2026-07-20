@@ -51,3 +51,33 @@ export interface PaginatedResponse<T> {
   previous: boolean;
   results: T[];
 }
+
+export interface SecurityStatus {
+  sender_email: string;
+  has_password: boolean;
+  has_credentials: boolean;
+}
+
+export interface ResumeStatus {
+  has_resume: boolean;
+  filename?: string;
+  size_kb?: number;
+}
+
+export interface ApplyProgress {
+  running: boolean;
+  total: number;
+  done: number;
+  succeeded: number;
+  failed: number;
+  current: string;
+}
+
+export interface AIConfig {
+  provider: string;
+  api_base_url: string;
+  model_name: string;
+  has_api_key: boolean;
+  has_ai_config: boolean;
+  presets: Record<string, { name: string; api_base_url: string; model: string }>;
+}

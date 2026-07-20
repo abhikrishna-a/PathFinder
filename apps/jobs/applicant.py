@@ -197,51 +197,53 @@ LinkedIn: {PROFILE['linkedin']}
     return letter.strip()
 
 
-def send_application(job: dict, cover_letter: str) -> tuple[bool, str]:
+def send_application(job: dict, cover_letter: str, email_user: str = None, email_pass: str = None, resume_path: str = None) -> tuple[bool, str]:
     apply_email = job.get("apply_email", "")
     if not apply_email:
         return False, "No email address found for this job"
 
-    if not EMAIL_PASS:
-        return False, "Email password (EMAIL_PASS) not configured in .env"
+    sender = email_user or EMAIL_USER
+    password = email_pass or EMAIL_PASS
+    if not password:
+        return False, "Email password not configured. Set credentials in Profile > Security."
 
     msg = MIMEMultipart()
-    msg["From"] = EMAIL_USER
+    msg["From"] = sender
     msg["To"] = apply_email
     msg["Subject"] = f"Application for {job.get('title', 'Python Developer')} - {PROFILE['name']}"
 
     msg.attach(MIMEText(cover_letter, "plain"))
 
-    resume_path = Path(RESUME_PATH)
-    if resume_path.exists():
-        with open(resume_path, "rb") as f:
+    res_path = Path(resume_path) if resume_path else Path(RESUME_PATH)
+    if res_path.exists():
+        with open(res_path, "rb") as f:
             attachment = MIMEApplication(f.read(), _subtype="pdf")
             attachment.add_header(
                 "Content-Disposition", "attachment",
                 filename=f"{PROFILE['name'].replace(' ', '_')}_Resume.pdf"
             )
             msg.attach(attachment)
-        logger.info(f"Resume attached: {resume_path}")
+        logger.info(f"Resume attached: {res_path}")
     else:
-        logger.warning(f"Resume not found at {resume_path}")
+        logger.warning(f"Resume not found at {res_path}")
 
     try:
         with smtplib.SMTP_SSL(EMAIL_SMTP_HOST, EMAIL_SMTP_PORT) as server:
-            server.login(EMAIL_USER, EMAIL_PASS)
+            server.login(sender, password)
             server.send_message(msg)
         logger.info(f"Application sent to {apply_email} for {job.get('title')}")
         return True, "Sent"
     except smtplib.SMTPAuthenticationError:
-        return False, "Gmail authentication failed. Check EMAIL_PASS (use App Password)."
+        return False, "Gmail authentication failed. Check your App Password in Profile > Security."
     except smtplib.SMTPRecipientsRefused:
         return False, f"Recipient refused: {apply_email}"
     except Exception as e:
         return False, str(e)
 
 
-def apply_to_job(job: dict) -> dict:
+def apply_to_job(job: dict, email_user: str = None, email_pass: str = None, resume_path: str = None) -> dict:
     cover_letter = generate_cover_letter(job)
-    success, message = send_application(job, cover_letter)
+    success, message = send_application(job, cover_letter, email_user=email_user, email_pass=email_pass, resume_path=resume_path)
 
     description = job.get("description", "") + " " + job.get("full_text", "")
     jd_req = _extract_jd_keywords(description)
