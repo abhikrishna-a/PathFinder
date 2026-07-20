@@ -214,6 +214,12 @@ export default function ApplyQueue() {
               <div className="aq-card-body">
                 <div className="aq-card-title-row">
                   <Link to={`/jobs/${job.id}`} className="aq-card-title">{job.title}</Link>
+                  {job.has_failed_app && (
+                    <span className="aq-badge aq-badge-failed">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      Retry
+                    </span>
+                  )}
                   <span className="aq-email-badge">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="2" y="4" width="20" height="16" rx="2" />
