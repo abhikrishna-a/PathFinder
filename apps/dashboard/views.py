@@ -382,13 +382,12 @@ def _run_fetcher_background():
     try:
         from apps.jobs.fetchers import fetch_all_jobs
         from apps.jobs.matcher import match_all_jobs
-        from apps.jobs.applicant import apply_to_job
         from apps.jobs.services import (
             enrich_jobs_with_emails, is_company_email,
-            save_job, save_application, save_web_apply,
+            save_job,
             update_daily_stats, job_exists,
         )
-        from config.settings import MATCH_THRESHOLD_APPLY, DASHBOARD_MIN_SCORE_TRACK
+        from config.settings import DASHBOARD_MIN_SCORE_TRACK
 
         _fetcher_running = True
 
@@ -400,17 +399,17 @@ def _run_fetcher_background():
             .values_list("job__uid", flat=True)
         )
 
-        apply_candidates = [
+        email_candidates = [
             j for j in matched_jobs
-            if j["match_score"] >= MATCH_THRESHOLD_APPLY and j["uid"] not in already_applied_uids
+            if j["uid"] not in already_applied_uids and j.get("apply_url")
         ]
 
-        if apply_candidates:
-            apply_candidates = enrich_jobs_with_emails(apply_candidates)
+        if email_candidates:
+            enrich_jobs_with_emails(email_candidates)
 
-        applied = 0
-        web_applied = 0
-        failed_apply = 0
+        matched = 0
+        has_email = 0
+        no_email = 0
 
         for job_data in matched_jobs:
             if job_data["uid"] in already_applied_uids:
@@ -423,36 +422,25 @@ def _run_fetcher_background():
                 job_data["apply_email"] = ""
                 email = ""
 
-            if email and job_data["match_score"] >= MATCH_THRESHOLD_APPLY:
-                result = apply_to_job(job_data)
-                job = save_job(job_data)
-                job.status = "applied"
-                job.save()
-                save_application(job, result)
-                if result["success"]:
-                    applied += 1
-                else:
-                    failed_apply += 1
-            elif not email and job_data.get("apply_url") and job_data["match_score"] >= MATCH_THRESHOLD_APPLY:
-                result = apply_to_job(job_data)
-                job = save_job(job_data)
-                job.status = "web_apply"
-                job.save()
-                save_web_apply(job, result)
-                web_applied += 1
+            if email:
+                has_email += 1
+            elif job_data["match_score"] >= DASHBOARD_MIN_SCORE_TRACK:
+                no_email += 1
+
+            matched += 1
 
         ignored_count = len(raw_jobs) - len(matched_jobs)
         update_daily_stats(
             fetched=len(raw_jobs),
             matched=len(matched_jobs),
-            applied=applied,
+            applied=0,
             ignored=ignored_count,
-            failed=failed_apply,
+            failed=0,
         )
 
         logger.info(
-            "Fetcher complete: fetched=%d matched=%d applied=%d web_apply=%d failed=%d",
-            len(raw_jobs), len(matched_jobs), applied, web_applied, failed_apply,
+            "Fetcher complete: fetched=%d matched=%d has_email=%d no_email=%d",
+            len(raw_jobs), len(matched_jobs), has_email, no_email,
         )
     except Exception:
         logger.exception("Fetcher failed")
